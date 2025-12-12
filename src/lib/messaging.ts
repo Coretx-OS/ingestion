@@ -117,8 +117,8 @@ export async function sendToActiveTab<T extends MessageType>(
 export function createMessageHandler(
   handlers: Partial<{
     [K in MessageType]: (
-      payload: MessageTypes[K]["request"],
-      sender: chrome.runtime.MessageSender
+      _payload: MessageTypes[K]["request"],
+      _sender: chrome.runtime.MessageSender
     ) => Promise<MessageTypes[K]["response"]> | MessageTypes[K]["response"];
   }>
 ): void {
@@ -126,8 +126,8 @@ export function createMessageHandler(
     const { type, payload } = message as Message;
     const handler = handlers[type] as
       | ((
-          payload: unknown,
-          sender: chrome.runtime.MessageSender
+          _payload: unknown,
+          _sender: chrome.runtime.MessageSender
         ) => Promise<unknown> | unknown)
       | undefined;
 

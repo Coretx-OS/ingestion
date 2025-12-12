@@ -66,8 +66,8 @@ export async function clearStorage(): Promise<void> {
  */
 export function onStorageChange(
   callback: (
-    changes: { [key: string]: chrome.storage.StorageChange },
-    areaName: string
+    _changes: { [key: string]: chrome.storage.StorageChange },
+    _areaName: string
   ) => void
 ): () => void {
   chrome.storage.onChanged.addListener(callback);

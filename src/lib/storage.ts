@@ -14,20 +14,76 @@
  *   const data = await getStorage("myFeature"); // typed!
  */
 
+// CanonicalRecord type (from backend OpenAPI spec)
+export interface CanonicalRecord {
+  schema_version: string;
+  type: 'person' | 'project' | 'idea' | 'admin';
+  title: string;
+  confidence: number;
+  clarification_question: string | null;
+  links: string[];
+  person: {
+    person_name: string | null;
+    context: string | null;
+    follow_up: string | null;
+  };
+  project: {
+    project_name: string | null;
+    project_status: 'active' | 'waiting' | 'blocked' | 'someday' | 'done';
+    next_action: string | null;
+    notes: string | null;
+  };
+  idea: {
+    idea_one_liner: string | null;
+    notes: string | null;
+  };
+  admin: {
+    task: string | null;
+    due_date: string | null;
+    task_status: 'open' | 'done';
+    notes: string | null;
+  };
+}
+
 export interface StorageSchema {
   // Extension settings - add your settings here
   settings: {
     enabled: boolean;
     theme: "light" | "dark" | "system";
     notifications: boolean;
+    apiBaseUrl: string; // Backend URL (default: http://localhost:3000)
   };
   // User data - add user-specific data here
   userData: {
     lastVisit: number;
     visitCount: number;
+    hasCompletedOnboarding: boolean; // First-run onboarding flag
   };
-  // Add more storage keys here as needed:
-  // myFeature: { ... };
+  // Capture configuration - what context to include
+  captureConfig: {
+    includeUrl: boolean;
+    includePageTitle: boolean;
+    includeSelectedText: boolean;
+  };
+  // Client metadata - required for all API requests
+  clientMeta: {
+    app: string; // "Second Brain OS Extension"
+    app_version: string; // From manifest.json version
+    device_id: string; // Generated UUID, persisted
+    timezone: string; // Intl.DateTimeFormat().resolvedOptions().timeZone
+  };
+  // Current capture - temp state during UI flow
+  currentCapture?: {
+    capture_id: string; // CRITICAL: Needed for Fix
+    inbox_log_id: string; // CRITICAL: Needed for Fix
+    record_id: string | null; // CRITICAL: Needed for Fix (null if needs_review)
+    status: 'filed' | 'needs_review';
+    type: 'person' | 'project' | 'idea' | 'admin';
+    title: string;
+    confidence: number;
+    clarification_question: string | null;
+    classification_record: CanonicalRecord | null; // Full record from classification
+  };
 }
 
 type StorageKey = keyof StorageSchema;
@@ -143,6 +199,7 @@ export const defaultSettings: StorageSchema["settings"] = {
   enabled: true,
   theme: "system",
   notifications: true,
+  apiBaseUrl: "http://localhost:3000", // Default backend URL
 };
 
 /**
@@ -151,13 +208,36 @@ export const defaultSettings: StorageSchema["settings"] = {
 export const defaultUserData: StorageSchema["userData"] = {
   lastVisit: Date.now(),
   visitCount: 0,
+  hasCompletedOnboarding: false,
 };
+
+/**
+ * Default capture configuration
+ */
+export const defaultCaptureConfig: StorageSchema["captureConfig"] = {
+  includeUrl: true,
+  includePageTitle: true,
+  includeSelectedText: false, // Off by default for privacy
+};
+
+/**
+ * Generate client metadata
+ * Call this once on extension install to create persistent device_id
+ */
+export function generateClientMeta(appVersion: string): StorageSchema["clientMeta"] {
+  return {
+    app: "Second Brain OS Extension",
+    app_version: appVersion,
+    device_id: crypto.randomUUID(),
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  };
+}
 
 /**
  * Initialize storage with default values if not set
  * Call this in background script on install
  */
-export async function initializeStorage(): Promise<void> {
+export async function initializeStorage(appVersion: string): Promise<void> {
   const settings = await getStorage("settings");
   if (!settings) {
     await setStorage("settings", defaultSettings);
@@ -166,5 +246,15 @@ export async function initializeStorage(): Promise<void> {
   const userData = await getStorage("userData");
   if (!userData) {
     await setStorage("userData", defaultUserData);
+  }
+
+  const captureConfig = await getStorage("captureConfig");
+  if (!captureConfig) {
+    await setStorage("captureConfig", defaultCaptureConfig);
+  }
+
+  const clientMeta = await getStorage("clientMeta");
+  if (!clientMeta) {
+    await setStorage("clientMeta", generateClientMeta(appVersion));
   }
 }

@@ -20,6 +20,11 @@ export default [
         setTimeout: "readonly",
         confirm: "readonly",
         HTMLElement: "readonly",
+        fetch: "readonly",
+        crypto: "readonly",
+        URL: "readonly",
+        URLSearchParams: "readonly",
+        Intl: "readonly",
       },
     },
     plugins: {

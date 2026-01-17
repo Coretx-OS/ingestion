@@ -1,0 +1,459 @@
+[
+  {
+    "id": "cap-001",
+    "description": "Project with explicit next action",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "capture": {
+        "raw_text": "Website relaunch — email Sarah to confirm copy deadline.",
+        "captured_at": "2026-01-10T09:12:33+08:00",
+        "context": {
+          "url": "https://example.com/brief",
+          "page_title": "Project Brief",
+          "selected_text": null,
+          "selection_is_present": false
+        }
+      }
+    },
+    "expected": {
+      "status": "filed",
+      "type": "project",
+      "min_confidence": 0.8,
+      "assertions": [
+        "classification.record.project.project_name != null",
+        "classification.record.project.next_action contains 'Email'",
+        "classification.record.links length >= 1",
+        "stored_record.record_id != null"
+      ]
+    }
+  },
+  {
+    "id": "cap-002",
+    "description": "Project blocked",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "capture": {
+        "raw_text": "CRM migration is blocked until we get client API access.",
+        "captured_at": "2026-01-10T09:13:10+08:00",
+        "context": {
+          "url": null,
+          "page_title": null,
+          "selected_text": null,
+          "selection_is_present": false
+        }
+      }
+    },
+    "expected": {
+      "status": "filed",
+      "type": "project",
+      "min_confidence": 0.6,
+      "assertions": [
+        "classification.record.project.project_status == 'blocked'"
+      ]
+    }
+  },
+  {
+    "id": "cap-003",
+    "description": "Project waiting on dependency",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "capture": {
+        "raw_text": "Waiting on supplier quote for insulation before we proceed.",
+        "captured_at": "2026-01-10T09:14:00+08:00",
+        "context": {
+          "url": null,
+          "page_title": null,
+          "selected_text": null,
+          "selection_is_present": false
+        }
+      }
+    },
+    "expected": {
+      "status": "filed",
+      "type": "project",
+      "min_confidence": 0.6,
+      "assertions": [
+        "classification.record.project.project_status == 'waiting'"
+      ]
+    }
+  },
+  {
+    "id": "cap-004",
+    "description": "Someday project",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "capture": {
+        "raw_text": "Someday: build a second-brain extension for YouTube research.",
+        "captured_at": "2026-01-10T09:15:00+08:00",
+        "context": {
+          "url": null,
+          "page_title": null,
+          "selected_text": null,
+          "selection_is_present": false
+        }
+      }
+    },
+    "expected": {
+      "status": "filed",
+      "type": "project",
+      "min_confidence": 0.6,
+      "assertions": [
+        "classification.record.project.project_status == 'someday'"
+      ]
+    }
+  },
+  {
+    "id": "cap-005",
+    "description": "Admin with absolute due date",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "capture": {
+        "raw_text": "Renew domain by 2026-01-14.",
+        "captured_at": "2026-01-10T09:16:00+08:00",
+        "context": {
+          "url": "https://robertcousins.com",
+          "page_title": "Domain Management",
+          "selected_text": null,
+          "selection_is_present": false
+        }
+      }
+    },
+    "expected": {
+      "status": "filed",
+      "type": "admin",
+      "min_confidence": 0.75,
+      "assertions": [
+        "classification.record.admin.due_date == '2026-01-14'",
+        "classification.record.admin.task_status == 'open'"
+      ]
+    }
+  },
+  {
+    "id": "cap-006",
+    "description": "Admin with relative due date (must not resolve)",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "capture": {
+        "raw_text": "Pay invoice tomorrow.",
+        "captured_at": "2026-01-10T09:17:00+08:00",
+        "context": {
+          "url": null,
+          "page_title": null,
+          "selected_text": null,
+          "selection_is_present": false
+        }
+      }
+    },
+    "expected": {
+      "status": "needs_review",
+      "type": "admin",
+      "max_confidence": 0.59,
+      "assertions": [
+        "classification.clarification_question != null",
+        "classification.record == null",
+        "stored_record == null"
+      ]
+    }
+  },
+  {
+    "id": "cap-007",
+    "description": "Admin basic task",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "capture": {
+        "raw_text": "Book dentist appointment.",
+        "captured_at": "2026-01-10T09:18:00+08:00",
+        "context": {
+          "url": null,
+          "page_title": null,
+          "selected_text": null,
+          "selection_is_present": false
+        }
+      }
+    },
+    "expected": {
+      "status": "filed",
+      "type": "admin",
+      "min_confidence": 0.6,
+      "assertions": [
+        "classification.record.admin.task != null"
+      ]
+    }
+  },
+  {
+    "id": "cap-008",
+    "description": "Person preference",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "capture": {
+        "raw_text": "Ben prefers email, not phone.",
+        "captured_at": "2026-01-10T09:19:00+08:00",
+        "context": {
+          "url": null,
+          "page_title": null,
+          "selected_text": null,
+          "selection_is_present": false
+        }
+      }
+    },
+    "expected": {
+      "status": "filed",
+      "type": "person",
+      "min_confidence": 0.7,
+      "assertions": [
+        "classification.record.person.person_name == 'Ben'"
+      ]
+    }
+  },
+  {
+    "id": "cap-009",
+    "description": "Person follow-up",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "capture": {
+        "raw_text": "Ask Priya how her new role is going next time we chat.",
+        "captured_at": "2026-01-10T09:20:00+08:00",
+        "context": {
+          "url": null,
+          "page_title": null,
+          "selected_text": null,
+          "selection_is_present": false
+        }
+      }
+    },
+    "expected": {
+      "status": "filed",
+      "type": "person",
+      "min_confidence": 0.65,
+      "assertions": [
+        "classification.record.person.follow_up != null"
+      ]
+    }
+  },
+  {
+    "id": "cap-010",
+    "description": "Ambiguous person (needs review)",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "capture": {
+        "raw_text": "Follow up with that guy from the meeting.",
+        "captured_at": "2026-01-10T09:21:00+08:00",
+        "context": {
+          "url": null,
+          "page_title": null,
+          "selected_text": null,
+          "selection_is_present": false
+        }
+      }
+    },
+    "expected": {
+      "status": "needs_review",
+      "type": "person",
+      "max_confidence": 0.59,
+      "assertions": [
+        "classification.clarification_question != null",
+        "classification.record == null"
+      ]
+    }
+  },
+  {
+    "id": "cap-011",
+    "description": "Idea one-liner",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "capture": {
+        "raw_text": "Idea: make the daily digest include one avoided task.",
+        "captured_at": "2026-01-10T09:22:00+08:00",
+        "context": {
+          "url": null,
+          "page_title": null,
+          "selected_text": null,
+          "selection_is_present": false
+        }
+      }
+    },
+    "expected": {
+      "status": "filed",
+      "type": "idea",
+      "min_confidence": 0.7,
+      "assertions": [
+        "classification.record.idea.idea_one_liner != null"
+      ]
+    }
+  },
+  {
+    "id": "cap-012",
+    "description": "Idea from UI pattern / browser context",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "capture": {
+        "raw_text": "This UI pattern is interesting; could adapt for our CRM.",
+        "captured_at": "2026-01-10T09:23:00+08:00",
+        "context": {
+          "url": "https://ui.example.com/demo",
+          "page_title": "Demo UI",
+          "selected_text": null,
+          "selection_is_present": false
+        }
+      }
+    },
+    "expected": {
+      "status": "filed",
+      "type": "idea",
+      "min_confidence": 0.6,
+      "assertions": [
+        "classification.record.links length >= 1"
+      ]
+    }
+  },
+  {
+    "id": "cap-013",
+    "description": "Vague, low signal (needs review)",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "capture": {
+        "raw_text": "Do the thing.",
+        "captured_at": "2026-01-10T09:24:00+08:00",
+        "context": {
+          "url": null,
+          "page_title": null,
+          "selected_text": null,
+          "selection_is_present": false
+        }
+      }
+    },
+    "expected": {
+      "status": "needs_review",
+      "type": "admin",
+      "max_confidence": 0.59,
+      "assertions": [
+        "classification.clarification_question != null"
+      ]
+    }
+  },
+  {
+    "id": "cap-014",
+    "description": "Multiple unrelated thoughts (needs review)",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "capture": {
+        "raw_text": "Email Sarah about copy. Also call Ben about insulation. And buy a new mouse.",
+        "captured_at": "2026-01-10T09:25:00+08:00",
+        "context": {
+          "url": null,
+          "page_title": null,
+          "selected_text": null,
+          "selection_is_present": false
+        }
+      }
+    },
+    "expected": {
+      "status": "needs_review",
+      "type": "admin",
+      "max_confidence": 0.59,
+      "assertions": [
+        "classification.clarification_question contains 'one thought'"
+      ]
+    }
+  },
+  {
+    "id": "cap-015",
+    "description": "Garbage input (needs review)",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "capture": {
+        "raw_text": "asdfkjl;;",
+        "captured_at": "2026-01-10T09:26:00+08:00",
+        "context": {
+          "url": null,
+          "page_title": null,
+          "selected_text": null,
+          "selection_is_present": false
+        }
+      }
+    },
+    "expected": {
+      "status": "needs_review",
+      "type": "admin",
+      "max_confidence": 0.34,
+      "assertions": [
+        "classification.clarification_question != null"
+      ]
+    }
+  }
+]

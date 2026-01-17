@@ -1,0 +1,492 @@
+openapi: 3.1.0
+info:
+title: Second Brain OS API
+version: 0.1.0
+description: >
+Minimal API for a trust-first second brain loop: capture → classify → store → confirm → digest/review → fix.
+servers:
+
+url: https://api.example.com
+paths:
+/capture:
+post:
+operationId: captureThought
+summary: Capture a thought, classify, and file (or return needs_review)
+requestBody:
+required: true
+content:
+application/json:
+schema:
+$ref: "#/components/schemas/CaptureRequest"
+responses:
+"200":
+description: Filed or needs_review result
+content:
+application/json:
+schema:
+$ref: "#/components/schemas/CaptureResponse"
+
+/fix:
+post:
+operationId: fixClassification
+summary: Apply a user correction to an existing record or needs_review item
+requestBody:
+required: true
+content:
+application/json:
+schema:
+$ref: "#/components/schemas/FixRequest"
+responses:
+"200":
+description: Fixed or still needs_review
+content:
+application/json:
+schema:
+$ref: "#/components/schemas/FixResponse"
+
+/recent:
+get:
+operationId: listRecentCaptures
+summary: Get recent captures for the extension log view
+parameters:
+- name: limit
+in: query
+required: false
+schema:
+type: integer
+minimum: 1
+maximum: 100
+default: 20
+- name: cursor
+in: query
+required: false
+schema:
+type: string
+nullable: true
+responses:
+"200":
+description: Recent capture items
+content:
+application/json:
+schema:
+$ref: "#/components/schemas/RecentResponse"
+
+/digest/preview:
+post:
+operationId: previewDailyDigest
+summary: Generate a preview of the daily digest (on demand)
+requestBody:
+required: true
+content:
+application/json:
+schema:
+$ref: "#/components/schemas/DigestPreviewRequest"
+responses:
+"200":
+description: Daily digest preview
+content:
+application/json:
+schema:
+$ref: "#/components/schemas/DigestPreviewResponse"
+
+/review/preview:
+post:
+operationId: previewWeeklyReview
+summary: Generate a preview of the weekly review (on demand)
+requestBody:
+required: true
+content:
+application/json:
+schema:
+$ref: "#/components/schemas/ReviewPreviewRequest"
+responses:
+"200":
+description: Weekly review preview
+content:
+application/json:
+schema:
+$ref: "#/components/schemas/ReviewPreviewResponse"
+
+components:
+schemas:
+ClientMeta:
+type: object
+additionalProperties: false
+required: [app, app_version, device_id, timezone]
+properties:
+app: { type: string }
+app_version: { type: string }
+device_id: { type: string }
+timezone: { type: string }
+
+yaml
+Copy code
+CaptureContext:
+  type: object
+  additionalProperties: false
+  required: [url, page_title, selected_text, selection_is_present]
+  properties:
+    url: { type: ["string", "null"] }
+    page_title: { type: ["string", "null"] }
+    selected_text: { type: ["string", "null"] }
+    selection_is_present: { type: boolean }
+
+CaptureRequest:
+  type: object
+  additionalProperties: false
+  required: [client, capture]
+  properties:
+    client: { $ref: "#/components/schemas/ClientMeta" }
+    capture:
+      type: object
+      additionalProperties: false
+      required: [raw_text, captured_at, context]
+      properties:
+        raw_text: { type: string }
+        captured_at: { type: string, format: date-time }
+        context: { $ref: "#/components/schemas/CaptureContext" }
+
+RecordType:
+  type: string
+  enum: [person, project, idea, admin]
+
+ProjectStatus:
+  type: string
+  enum: [active, waiting, blocked, someday, done]
+
+TaskStatus:
+  type: string
+  enum: [open, done]
+
+PersonFields:
+  type: object
+  additionalProperties: false
+  required: [person_name, context, follow_up]
+  properties:
+    person_name: { type: ["string", "null"] }
+    context: { type: ["string", "null"] }
+    follow_up: { type: ["string", "null"] }
+
+ProjectFields:
+  type: object
+  additionalProperties: false
+  required: [project_name, project_status, next_action, notes]
+  properties:
+    project_name: { type: ["string", "null"] }
+    project_status: { $ref: "#/components/schemas/ProjectStatus" }
+    next_action: { type: ["string", "null"] }
+    notes: { type: ["string", "null"] }
+
+IdeaFields:
+  type: object
+  additionalProperties: false
+  required: [idea_one_liner, notes]
+  properties:
+    idea_one_liner: { type: ["string", "null"] }
+    notes: { type: ["string", "null"] }
+
+AdminFields:
+  type: object
+  additionalProperties: false
+  required: [task, due_date, task_status, notes]
+  properties:
+    task: { type: ["string", "null"] }
+    due_date:
+      type: ["string", "null"]
+      description: ISO date YYYY-MM-DD only
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+    task_status: { $ref: "#/components/schemas/TaskStatus" }
+    notes: { type: ["string", "null"] }
+
+CanonicalRecord:
+  type: object
+  additionalProperties: false
+  required:
+    [schema_version, type, title, confidence, clarification_question, links, person, project, idea, admin]
+  properties:
+    schema_version: { type: string, enum: ["1.0"] }
+    type: { $ref: "#/components/schemas/RecordType" }
+    title: { type: string }
+    confidence: { type: number, minimum: 0, maximum: 1 }
+    clarification_question: { type: ["string", "null"] }
+    links:
+      type: array
+      items: { type: string }
+    person: { $ref: "#/components/schemas/PersonFields" }
+    project: { $ref: "#/components/schemas/ProjectFields" }
+    idea: { $ref: "#/components/schemas/IdeaFields" }
+    admin: { $ref: "#/components/schemas/AdminFields" }
+
+CaptureResponse:
+  type: object
+  additionalProperties: false
+  required: [status, next_step, capture_id, inbox_log_id, classification]
+  properties:
+    status:
+      type: string
+      enum: [filed, needs_review]
+    next_step:
+      type: string
+      enum: [show_confirmation, show_needs_review]
+    capture_id: { type: string }
+    inbox_log_id: { type: string }
+    classification:
+      type: object
+      additionalProperties: false
+      required: [type, title, confidence, clarification_question, links, record]
+      properties:
+        type: { $ref: "#/components/schemas/RecordType" }
+        title: { type: string }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        clarification_question: { type: ["string", "null"] }
+        links:
+          type: array
+          items: { type: string }
+        record:
+          anyOf:
+            - { $ref: "#/components/schemas/CanonicalRecord" }
+            - { type: "null" }
+    stored_record:
+      type: ["object", "null"]
+      additionalProperties: false
+      required: [record_id, type]
+      properties:
+        record_id: { type: string }
+        type: { $ref: "#/components/schemas/RecordType" }
+
+FixRequest:
+  type: object
+  additionalProperties: false
+  required: [client, fix]
+  properties:
+    client: { $ref: "#/components/schemas/ClientMeta" }
+    fix:
+      type: object
+      additionalProperties: false
+      required: [capture_id, inbox_log_id, record_id, user_correction, existing_record]
+      properties:
+        capture_id: { type: string }
+        inbox_log_id: { type: string }
+        record_id: { type: ["string", "null"] }
+        user_correction: { type: string }
+        existing_record: { $ref: "#/components/schemas/CanonicalRecord" }
+
+FixResponse:
+  type: object
+  additionalProperties: false
+  required: [status, next_step, capture_id, inbox_log_id, updated_record, change_summary]
+  properties:
+    status:
+      type: string
+      enum: [fixed, needs_review]
+    next_step:
+      type: string
+      enum: [show_confirmation, show_needs_review]
+    capture_id: { type: string }
+    inbox_log_id: { type: string }
+    stored_record:
+      type: ["object", "null"]
+      additionalProperties: false
+      required: [record_id, type]
+      properties:
+        record_id: { type: string }
+        type: { $ref: "#/components/schemas/RecordType" }
+    updated_record:
+      anyOf:
+        - { $ref: "#/components/schemas/CanonicalRecord" }
+        - { type: "null" }
+    change_summary: { type: ["string", "null"] }
+    clarification_question: { type: ["string", "null"] }
+
+RecentItem:
+  type: object
+  additionalProperties: false
+  required:
+    [capture_id, inbox_log_id, captured_at, raw_text_preview, status, type, title, confidence, record_id]
+  properties:
+    capture_id: { type: string }
+    inbox_log_id: { type: string }
+    captured_at: { type: string, format: date-time }
+    raw_text_preview: { type: string }
+    status: { type: string, enum: [filed, needs_review, fixed] }
+    type: { $ref: "#/components/schemas/RecordType" }
+    title: { type: string }
+    confidence: { type: number, minimum: 0, maximum: 1 }
+    record_id: { type: ["string", "null"] }
+
+RecentResponse:
+  type: object
+  additionalProperties: false
+  required: [items, next_cursor]
+  properties:
+    items:
+      type: array
+      items: { $ref: "#/components/schemas/RecentItem" }
+    next_cursor: { type: ["string", "null"] }
+
+DigestPreviewRequest:
+  type: object
+  additionalProperties: false
+  required: [client, preview]
+  properties:
+    client: { $ref: "#/components/schemas/ClientMeta" }
+    preview:
+      type: object
+      additionalProperties: false
+      required: [date_label, data]
+      properties:
+        date_label: { type: string }
+        data:
+          type: object
+          additionalProperties: false
+          required: [active_projects, people_followups, admin_open, needs_review]
+          properties:
+            active_projects:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [project_name, project_status, next_action, notes]
+                properties:
+                  project_name: { type: string }
+                  project_status: { $ref: "#/components/schemas/ProjectStatus" }
+                  next_action: { type: ["string", "null"] }
+                  notes: { type: ["string", "null"] }
+            people_followups:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [person_name, follow_up, context]
+                properties:
+                  person_name: { type: string }
+                  follow_up: { type: ["string", "null"] }
+                  context: { type: ["string", "null"] }
+            admin_open:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [task, due_date, notes]
+                properties:
+                  task: { type: string }
+                  due_date: { type: ["string", "null"], pattern: '^\d{4}-\d{2}-\d{2}$' }
+                  notes: { type: ["string", "null"] }
+            needs_review:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [raw_text, clarification_question]
+                properties:
+                  raw_text: { type: string }
+                  clarification_question: { type: ["string", "null"] }
+
+Digest:
+  type: object
+  additionalProperties: false
+  required: [digest_text, top_3_actions, one_stuck_thing, one_small_win, needs_review_prompt]
+  properties:
+    digest_text: { type: string }
+    top_3_actions:
+      type: array
+      items: { type: string }
+      minItems: 3
+      maxItems: 3
+    one_stuck_thing: { type: ["string", "null"] }
+    one_small_win: { type: ["string", "null"] }
+    needs_review_prompt: { type: ["string", "null"] }
+
+DigestPreviewResponse:
+  type: object
+  additionalProperties: false
+  required: [status, digest]
+  properties:
+    status: { type: string, enum: [ok] }
+    digest: { $ref: "#/components/schemas/Digest" }
+
+ReviewPreviewRequest:
+  type: object
+  additionalProperties: false
+  required: [client, preview]
+  properties:
+    client: { $ref: "#/components/schemas/ClientMeta" }
+    preview:
+      type: object
+      additionalProperties: false
+      required: [week_label, data]
+      properties:
+        week_label: { type: string }
+        data:
+          type: object
+          additionalProperties: false
+          required: [captures_summary, highlights, active_projects, open_loops, needs_review_items]
+          properties:
+            captures_summary:
+              type: object
+              additionalProperties: false
+              required: [total_captures, filed, needs_review, fixed]
+              properties:
+                total_captures: { type: integer, minimum: 0 }
+                filed: { type: integer, minimum: 0 }
+                needs_review: { type: integer, minimum: 0 }
+                fixed: { type: integer, minimum: 0 }
+            highlights:
+              type: array
+              items: { type: string }
+            active_projects:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [project_name, project_status, next_action, notes]
+                properties:
+                  project_name: { type: string }
+                  project_status: { $ref: "#/components/schemas/ProjectStatus" }
+                  next_action: { type: ["string", "null"] }
+                  notes: { type: ["string", "null"] }
+            open_loops:
+              type: array
+              items: { type: string }
+            needs_review_items:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [raw_text, clarification_question]
+                properties:
+                  raw_text: { type: string }
+                  clarification_question: { type: ["string", "null"] }
+
+Review:
+  type: object
+  additionalProperties: false
+  required:
+    [review_text, what_moved, biggest_open_loops, next_week_top_3, recurring_theme, needs_review_prompt]
+  properties:
+    review_text: { type: string }
+    what_moved:
+      type: array
+      items: { type: string }
+      minItems: 3
+      maxItems: 3
+    biggest_open_loops:
+      type: array
+      items: { type: string }
+      minItems: 3
+      maxItems: 3
+    next_week_top_3:
+      type: array
+      items: { type: string }
+      minItems: 3
+      maxItems: 3
+    recurring_theme: { type: ["string", "null"] }
+    needs_review_prompt: { type: ["string", "null"] }
+
+ReviewPreviewResponse:
+  type: object
+  additionalProperties: false
+  required: [status, review]
+  properties:
+    status: { type: string, enum: [ok] }
+    review: { $ref: "#/components/schemas/Review" }

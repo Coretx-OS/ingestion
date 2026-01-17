@@ -6,6 +6,7 @@ interface Settings {
   enabled: boolean;
   theme: "light" | "dark" | "system";
   notifications: boolean;
+  apiBaseUrl: string; // Backend URL
 }
 
 export function Options() {
@@ -180,6 +181,27 @@ export function Options() {
                 />
               </button>
             </div>
+          </div>
+
+          {/* API Base URL */}
+          <div className="p-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-1">
+              Backend API URL
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">
+              The URL of your Second Brain OS backend server
+            </p>
+            <input
+              type="text"
+              value={settings?.apiBaseUrl || ""}
+              onChange={(e) => updateSetting("apiBaseUrl", e.target.value)}
+              disabled={saving}
+              placeholder="http://localhost:3000"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:opacity-50"
+            />
+            <p className="mt-2 text-xs text-gray-500">
+              Default: http://localhost:3000
+            </p>
           </div>
 
           {/* Reset Settings */}

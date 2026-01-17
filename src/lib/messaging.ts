@@ -45,6 +45,7 @@ export interface MessageTypes {
       enabled: boolean;
       theme: "light" | "dark" | "system";
       notifications: boolean;
+      apiBaseUrl: string; // Backend URL
     };
   };
 
@@ -64,11 +65,83 @@ export interface MessageTypes {
     response: { success: boolean; result?: unknown };
   };
 
-  // Add more message types here:
-  // MY_FEATURE: {
-  //   request: { ... };
-  //   response: { ... };
-  // };
+  // Second Brain OS - Capture a thought
+  CAPTURE_THOUGHT: {
+    request: {
+      raw_text: string;
+      context: {
+        url: string | null;
+        page_title: string | null;
+        selected_text: string | null;
+        selection_is_present: boolean; // REQUIRED by OpenAPI
+      };
+    };
+    response: {
+      // Exact mirror of CaptureResponse from OpenAPI
+      status: 'filed' | 'needs_review';
+      next_step: 'show_confirmation' | 'show_needs_review';
+      capture_id: string; // CRITICAL: Store for Fix
+      inbox_log_id: string; // CRITICAL: Store for Fix
+      classification: {
+        type: 'person' | 'project' | 'idea' | 'admin';
+        title: string;
+        confidence: number;
+        clarification_question: string | null;
+        links: string[];
+        record: import('./storage').CanonicalRecord | null;
+      };
+      stored_record: {
+        // CRITICAL: Contains record_id
+        record_id: string;
+        type: 'person' | 'project' | 'idea' | 'admin';
+      } | null;
+    };
+  };
+
+  // Second Brain OS - Fix/refine a classification
+  FIX_CLASSIFICATION: {
+    request: {
+      capture_id: string; // REQUIRED by OpenAPI
+      inbox_log_id: string; // REQUIRED by OpenAPI
+      record_id: string | null; // REQUIRED by OpenAPI
+      user_correction: string;
+      existing_record: import('./storage').CanonicalRecord; // REQUIRED by OpenAPI
+    };
+    response: {
+      // Exact mirror of FixResponse from OpenAPI
+      status: 'fixed' | 'needs_review';
+      next_step: 'show_confirmation' | 'show_needs_review';
+      capture_id: string;
+      inbox_log_id: string;
+      stored_record: {
+        record_id: string;
+        type: 'person' | 'project' | 'idea' | 'admin';
+      } | null;
+      updated_record: import('./storage').CanonicalRecord | null;
+      change_summary: string | null;
+      clarification_question: string | null;
+    };
+  };
+
+  // Second Brain OS - Fetch recent captures
+  FETCH_RECENT: {
+    request: { limit: number; cursor?: string };
+    response: {
+      // Exact mirror of RecentResponse from OpenAPI
+      items: Array<{
+        capture_id: string;
+        inbox_log_id: string; // CRITICAL: Needed for Fix
+        captured_at: string; // ISO datetime
+        raw_text_preview: string; // First 100 chars
+        status: 'filed' | 'needs_review' | 'fixed';
+        type: 'person' | 'project' | 'idea' | 'admin';
+        title: string;
+        confidence: number;
+        record_id: string | null; // CRITICAL: Needed for Fix
+      }>;
+      next_cursor: string | null; // log_id as string
+    };
+  };
 }
 
 export type MessageType = keyof MessageTypes;

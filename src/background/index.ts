@@ -13,13 +13,17 @@ import {
 
 console.log("[Background] Service worker started");
 
+// Get extension version from manifest
+const manifest = chrome.runtime.getManifest();
+const APP_VERSION = manifest.version;
+
 // Handle extension installation
 chrome.runtime.onInstalled.addListener(async (details) => {
   console.log("[Background] Extension installed:", details.reason);
 
   if (details.reason === chrome.runtime.OnInstalledReason.INSTALL) {
     // First-time installation
-    await initializeStorage();
+    await initializeStorage(APP_VERSION);
     console.log("[Background] Storage initialized with defaults");
 
     // Optional: Open welcome/onboarding page
@@ -32,13 +36,15 @@ chrome.runtime.onInstalled.addListener(async (details) => {
       "[Background] Extension updated from version:",
       details.previousVersion
     );
+    // Ensure storage is up to date
+    await initializeStorage(APP_VERSION);
   }
 });
 
 // Handle extension startup (browser restart, etc.)
 chrome.runtime.onStartup.addListener(async () => {
   console.log("[Background] Extension started");
-  await initializeStorage();
+  await initializeStorage(APP_VERSION);
 });
 
 // Set up message handlers
@@ -88,6 +94,124 @@ createMessageHandler({
   CONTENT_ACTION: async (payload) => {
     console.log("[Background] Content action received:", payload);
     return { success: true, result: payload.data };
+  },
+
+  // Second Brain OS - Capture thought
+  CAPTURE_THOUGHT: async (payload) => {
+    const [settings, clientMeta] = await Promise.all([
+      getStorage("settings"),
+      getStorage("clientMeta"),
+    ]);
+
+    if (!clientMeta) {
+      throw new Error("Client metadata not initialized");
+    }
+
+    const apiBaseUrl = settings?.apiBaseUrl ?? "http://localhost:3000";
+
+    // Construct CaptureRequest per OpenAPI spec
+    const captureRequest = {
+      client: {
+        // ClientMeta object (REQUIRED)
+        app: clientMeta.app,
+        app_version: clientMeta.app_version,
+        device_id: clientMeta.device_id,
+        timezone: clientMeta.timezone,
+      },
+      capture: {
+        // Nested capture object (REQUIRED)
+        raw_text: payload.raw_text,
+        captured_at: new Date().toISOString(), // ISO datetime (REQUIRED)
+        context: {
+          url: payload.context.url,
+          page_title: payload.context.page_title,
+          selected_text: payload.context.selected_text,
+          selection_is_present: payload.context.selection_is_present, // REQUIRED
+        },
+      },
+    };
+
+    const response = await fetch(`${apiBaseUrl}/capture`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(captureRequest),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: "Unknown error" }));
+      throw new Error(error.message || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data; // Returns full CaptureResponse with capture_id, inbox_log_id, stored_record
+  },
+
+  // Second Brain OS - Fix classification
+  FIX_CLASSIFICATION: async (payload) => {
+    const [settings, clientMeta] = await Promise.all([
+      getStorage("settings"),
+      getStorage("clientMeta"),
+    ]);
+
+    if (!clientMeta) {
+      throw new Error("Client metadata not initialized");
+    }
+
+    const apiBaseUrl = settings?.apiBaseUrl ?? "http://localhost:3000";
+
+    // Construct FixRequest per OpenAPI spec
+    const fixRequest = {
+      client: {
+        // ClientMeta object (REQUIRED)
+        app: clientMeta.app,
+        app_version: clientMeta.app_version,
+        device_id: clientMeta.device_id,
+        timezone: clientMeta.timezone,
+      },
+      fix: {
+        // Nested fix object (REQUIRED)
+        capture_id: payload.capture_id, // REQUIRED
+        inbox_log_id: payload.inbox_log_id, // REQUIRED
+        record_id: payload.record_id, // REQUIRED (null if needs_review)
+        user_correction: payload.user_correction,
+        existing_record: payload.existing_record, // Full CanonicalRecord
+      },
+    };
+
+    const response = await fetch(`${apiBaseUrl}/fix`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fixRequest),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: "Unknown error" }));
+      throw new Error(error.message || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data; // Returns full FixResponse with updated_record, change_summary
+  },
+
+  // Second Brain OS - Fetch recent captures
+  FETCH_RECENT: async (payload) => {
+    const settings = await getStorage("settings");
+    const apiBaseUrl = settings?.apiBaseUrl ?? "http://localhost:3000";
+
+    const params = new URLSearchParams({
+      limit: payload.limit.toString(),
+      ...(payload.cursor && { cursor: payload.cursor }),
+    });
+
+    const response = await fetch(`${apiBaseUrl}/recent?${params}`);
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: "Unknown error" }));
+      throw new Error(error.message || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data; // Returns RecentResponse with items array and next_cursor
   },
 });
 

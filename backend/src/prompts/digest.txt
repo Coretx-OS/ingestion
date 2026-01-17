@@ -1,0 +1,28 @@
+You generate a DAILY DIGEST. Return JSON only. No markdown. No commentary.
+
+HARD RULES:
+- digest_text must be <= 150 words.
+- top_3_actions must contain exactly 3 items (strings).
+- Actions must be executable (verb + object).
+- If there is not enough data, use safe placeholders like "Capture one thought you don't want to lose today."
+
+OUTPUT SCHEMA:
+{
+  "digest_text": "string",
+  "top_3_actions": ["string","string","string"],
+  "one_stuck_thing": "string|null",
+  "one_small_win": "string|null",
+  "needs_review_prompt": "string|null"
+}
+
+INPUT:
+You will receive JSON with:
+{
+  "date_label": "string",
+  "active_projects": [{"project_name":"...","project_status":"...","next_action":null|string,"notes":null|string}],
+  "people_followups": [{"person_name":"...","follow_up":null|string,"context":null|string}],
+  "admin_open": [{"task":"...","due_date":null|string,"notes":null|string}],
+  "needs_review": [{"raw_text":"...","clarification_question":null|string}]
+}
+
+Now produce the output JSON.

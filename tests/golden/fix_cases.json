@@ -1,0 +1,412 @@
+[
+  {
+    "id": "fix-001",
+    "description": "Reclassify needs_review admin -> project and set next action",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "fix": {
+        "capture_id": "cap-test-001",
+        "inbox_log_id": "log-test-001",
+        "record_id": null,
+        "user_correction": "fix: project. Title: Website relaunch. Next action: Email Sarah to confirm copy deadline.",
+        "existing_record": {
+          "schema_version": "1.0",
+          "type": "admin",
+          "title": "Unclear capture",
+          "confidence": 0.52,
+          "clarification_question": "Is this a project, an admin task, or an idea?",
+          "links": ["https://example.com/brief"],
+          "person": { "person_name": null, "context": null, "follow_up": null },
+          "project": { "project_name": null, "project_status": "active", "next_action": null, "notes": null },
+          "idea": { "idea_one_liner": null, "notes": null },
+          "admin": { "task": null, "due_date": null, "task_status": "open", "notes": "Website relaunch — email Sarah to confirm copy deadline." }
+        }
+      }
+    },
+    "expected": {
+      "status": "fixed",
+      "type": "project",
+      "min_confidence": 0.7,
+      "assertions": [
+        "stored_record.record_id != null",
+        "updated_record.project.project_name != null",
+        "updated_record.project.next_action contains 'Email'",
+        "updated_record.change_summary contains 'admin' and 'project'"
+      ]
+    }
+  },
+  {
+    "id": "fix-002",
+    "description": "Rename a record",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "fix": {
+        "capture_id": "cap-test-002",
+        "inbox_log_id": "log-test-002",
+        "record_id": "rec-test-002",
+        "user_correction": "rename to YouTube Extension MVP",
+        "existing_record": {
+          "schema_version": "1.0",
+          "type": "project",
+          "title": "YouTube extension",
+          "confidence": 0.82,
+          "clarification_question": null,
+          "links": [],
+          "person": { "person_name": null, "context": null, "follow_up": null },
+          "project": {
+            "project_name": "YouTube extension",
+            "project_status": "active",
+            "next_action": "Draft 1-page spec",
+            "notes": null
+          },
+          "idea": { "idea_one_liner": null, "notes": null },
+          "admin": { "task": null, "due_date": null, "task_status": "open", "notes": null }
+        }
+      }
+    },
+    "expected": {
+      "status": "fixed",
+      "type": "project",
+      "min_confidence": 0.7,
+      "assertions": [
+        "updated_record.title == 'YouTube Extension MVP'",
+        "updated_record.project.project_name == 'YouTube Extension MVP'"
+      ]
+    }
+  },
+  {
+    "id": "fix-003",
+    "description": "Set project status to blocked (preserve other fields)",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "fix": {
+        "capture_id": "cap-test-003",
+        "inbox_log_id": "log-test-003",
+        "record_id": "rec-test-003",
+        "user_correction": "status is blocked",
+        "existing_record": {
+          "schema_version": "1.0",
+          "type": "project",
+          "title": "CRM migration",
+          "confidence": 0.9,
+          "clarification_question": null,
+          "links": [],
+          "person": { "person_name": null, "context": null, "follow_up": null },
+          "project": {
+            "project_name": "CRM migration",
+            "project_status": "active",
+            "next_action": "Request API access from client",
+            "notes": "Migration plan drafted."
+          },
+          "idea": { "idea_one_liner": null, "notes": null },
+          "admin": { "task": null, "due_date": null, "task_status": "open", "notes": null }
+        }
+      }
+    },
+    "expected": {
+      "status": "fixed",
+      "type": "project",
+      "min_confidence": 0.7,
+      "assertions": [
+        "updated_record.project.project_status == 'blocked'",
+        "updated_record.project.next_action == 'Request API access from client'",
+        "updated_record.project.notes == 'Migration plan drafted.'"
+      ]
+    }
+  },
+  {
+    "id": "fix-004",
+    "description": "Update next action to a specific executable action",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "fix": {
+        "capture_id": "cap-test-004",
+        "inbox_log_id": "log-test-004",
+        "record_id": "rec-test-004",
+        "user_correction": "next action is: call supplier and ask for quote",
+        "existing_record": {
+          "schema_version": "1.0",
+          "type": "project",
+          "title": "Insulation quote",
+          "confidence": 0.78,
+          "clarification_question": null,
+          "links": [],
+          "person": { "person_name": null, "context": null, "follow_up": null },
+          "project": {
+            "project_name": "Insulation quote",
+            "project_status": "waiting",
+            "next_action": null,
+            "notes": null
+          },
+          "idea": { "idea_one_liner": null, "notes": null },
+          "admin": { "task": null, "due_date": null, "task_status": "open", "notes": null }
+        }
+      }
+    },
+    "expected": {
+      "status": "fixed",
+      "type": "project",
+      "min_confidence": 0.7,
+      "assertions": [
+        "updated_record.project.next_action contains 'Call' or contains 'call'"
+      ]
+    }
+  },
+  {
+    "id": "fix-005",
+    "description": "Relative due date in fix must remain null and ask clarification",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "fix": {
+        "capture_id": "cap-test-005",
+        "inbox_log_id": "log-test-005",
+        "record_id": "rec-test-005",
+        "user_correction": "due tomorrow",
+        "existing_record": {
+          "schema_version": "1.0",
+          "type": "admin",
+          "title": "Pay invoice",
+          "confidence": 0.7,
+          "clarification_question": null,
+          "links": [],
+          "person": { "person_name": null, "context": null, "follow_up": null },
+          "project": { "project_name": null, "project_status": "active", "next_action": null, "notes": null },
+          "idea": { "idea_one_liner": null, "notes": null },
+          "admin": { "task": "Pay invoice", "due_date": null, "task_status": "open", "notes": null }
+        }
+      }
+    },
+    "expected": {
+      "status": "needs_review",
+      "type": "admin",
+      "max_confidence": 0.59,
+      "assertions": [
+        "clarification_question != null"
+      ]
+    }
+  },
+  {
+    "id": "fix-006",
+    "description": "Absolute due date in fix should be set",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "fix": {
+        "capture_id": "cap-test-006",
+        "inbox_log_id": "log-test-006",
+        "record_id": "rec-test-006",
+        "user_correction": "due on 2026-01-15",
+        "existing_record": {
+          "schema_version": "1.0",
+          "type": "admin",
+          "title": "Renew domain",
+          "confidence": 0.9,
+          "clarification_question": null,
+          "links": [],
+          "person": { "person_name": null, "context": null, "follow_up": null },
+          "project": { "project_name": null, "project_status": "active", "next_action": null, "notes": null },
+          "idea": { "idea_one_liner": null, "notes": null },
+          "admin": { "task": "Renew domain", "due_date": null, "task_status": "open", "notes": null }
+        }
+      }
+    },
+    "expected": {
+      "status": "fixed",
+      "type": "admin",
+      "min_confidence": 0.7,
+      "assertions": [
+        "updated_record.admin.due_date == '2026-01-15'"
+      ]
+    }
+  },
+  {
+    "id": "fix-007",
+    "description": "Ambiguous fix request should ask clarification",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "fix": {
+        "capture_id": "cap-test-007",
+        "inbox_log_id": "log-test-007",
+        "record_id": "rec-test-007",
+        "user_correction": "fix it",
+        "existing_record": {
+          "schema_version": "1.0",
+          "type": "idea",
+          "title": "Productise transcript flow",
+          "confidence": 0.85,
+          "clarification_question": null,
+          "links": [],
+          "person": { "person_name": null, "context": null, "follow_up": null },
+          "project": { "project_name": null, "project_status": "active", "next_action": null, "notes": null },
+          "idea": { "idea_one_liner": "Productise transcript flow", "notes": "MVP possible." },
+          "admin": { "task": null, "due_date": null, "task_status": "open", "notes": null }
+        }
+      }
+    },
+    "expected": {
+      "status": "needs_review",
+      "type": "idea",
+      "max_confidence": 0.59,
+      "assertions": [
+        "clarification_question != null"
+      ]
+    }
+  },
+  {
+    "id": "fix-008",
+    "description": "Move idea -> project with next action",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "fix": {
+        "capture_id": "cap-test-008",
+        "inbox_log_id": "log-test-008",
+        "record_id": "rec-test-008",
+        "user_correction": "This is a project now. Next action: write 1-page spec.",
+        "existing_record": {
+          "schema_version": "1.0",
+          "type": "idea",
+          "title": "Second brain extension",
+          "confidence": 0.75,
+          "clarification_question": null,
+          "links": [],
+          "person": { "person_name": null, "context": null, "follow_up": null },
+          "project": { "project_name": null, "project_status": "active", "next_action": null, "notes": null },
+          "idea": { "idea_one_liner": "Build second brain extension", "notes": null },
+          "admin": { "task": null, "due_date": null, "task_status": "open", "notes": null }
+        }
+      }
+    },
+    "expected": {
+      "status": "fixed",
+      "type": "project",
+      "min_confidence": 0.7,
+      "assertions": [
+        "updated_record.project.project_name != null",
+        "updated_record.project.next_action contains 'write' or contains 'Write'"
+      ]
+    }
+  },
+  {
+    "id": "fix-009",
+    "description": "Preserve notes when only status changes",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "fix": {
+        "capture_id": "cap-test-009",
+        "inbox_log_id": "log-test-009",
+        "record_id": "rec-test-009",
+        "user_correction": "status is waiting",
+        "existing_record": {
+          "schema_version": "1.0",
+          "type": "project",
+          "title": "Website relaunch",
+          "confidence": 0.9,
+          "clarification_question": null,
+          "links": [],
+          "person": { "person_name": null, "context": null, "follow_up": null },
+          "project": {
+            "project_name": "Website relaunch",
+            "project_status": "active",
+            "next_action": "Email Sarah to confirm copy deadline",
+            "notes": "Copy is pending approval."
+          },
+          "idea": { "idea_one_liner": null, "notes": null },
+          "admin": { "task": null, "due_date": null, "task_status": "open", "notes": null }
+        }
+      }
+    },
+    "expected": {
+      "status": "fixed",
+      "type": "project",
+      "min_confidence": 0.7,
+      "assertions": [
+        "updated_record.project.project_status == 'waiting'",
+        "updated_record.project.notes == 'Copy is pending approval.'"
+      ]
+    }
+  },
+  {
+    "id": "fix-010",
+    "description": "Reclassify person -> idea (null incompatible fields)",
+    "request": {
+      "client": {
+        "app": "secondbrain-extension",
+        "app_version": "0.1.0",
+        "device_id": "test-device",
+        "timezone": "Australia/Perth"
+      },
+      "fix": {
+        "capture_id": "cap-test-010",
+        "inbox_log_id": "log-test-010",
+        "record_id": "rec-test-010",
+        "user_correction": "Not a person, just an idea.",
+        "existing_record": {
+          "schema_version": "1.0",
+          "type": "person",
+          "title": "Ben — insulation supplier",
+          "confidence": 0.75,
+          "clarification_question": null,
+          "links": [],
+          "person": { "person_name": "Ben", "context": "Insulation supplier reference", "follow_up": "Ask about supplier details" },
+          "project": { "project_name": null, "project_status": "active", "next_action": null, "notes": null },
+          "idea": { "idea_one_liner": null, "notes": null },
+          "admin": { "task": null, "due_date": null, "task_status": "open", "notes": null }
+        }
+      }
+    },
+    "expected": {
+      "status": "fixed",
+      "type": "idea",
+      "min_confidence": 0.70,
+      "assertions": [
+        "updated_record.type == 'idea'",
+        "updated_record.person.person_name == null",
+        "updated_record.idea.idea_one_liner != null or updated_record.clarification_question != null"
+      ]
+    }
+  }
+]

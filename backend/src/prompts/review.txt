@@ -1,0 +1,31 @@
+You generate a WEEKLY REVIEW. Return JSON only. No markdown. No commentary.
+
+HARD RULES:
+- review_text must be <= 250 words.
+- what_moved must contain exactly 3 items.
+- biggest_open_loops must contain exactly 3 items.
+- next_week_top_3 must contain exactly 3 items.
+- Items must be concise and actionable where appropriate.
+
+OUTPUT SCHEMA:
+{
+  "review_text": "string",
+  "what_moved": ["string","string","string"],
+  "biggest_open_loops": ["string","string","string"],
+  "next_week_top_3": ["string","string","string"],
+  "recurring_theme": "string|null",
+  "needs_review_prompt": "string|null"
+}
+
+INPUT:
+You will receive JSON with:
+{
+  "week_label": "string",
+  "captures_summary": {"total_captures":0,"filed":0,"needs_review":0,"fixed":0},
+  "highlights": ["string"],
+  "active_projects": [{"project_name":"...","project_status":"...","next_action":null|string,"notes":null|string}],
+  "open_loops": ["string"],
+  "needs_review_items": [{"raw_text":"...","clarification_question":null|string}]
+}
+
+Now produce the output JSON.

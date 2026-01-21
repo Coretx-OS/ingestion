@@ -1,53 +1,132 @@
-# Chrome Extension Boilerplate - Development Guide
+# Second Brain OS - Development Guide
 
-A production-ready Chrome Extension template using **Manifest V3**, **TypeScript**, **React**, **Vite**, and **Tailwind CSS**. Created by Ken Kai as a starting point for building modern Chrome extensions with full type safety, hot module reloading, and clean architectural patterns.
+Second Brain OS is a trust-first personal knowledge capture system consisting of a Chrome extension and backend API.
 
 **Repository:** https://github.com/robert-cousins/kens-chrome-extension
 
-## Project Structure
+## Quick Orientation for Agents
+
+This is a **monorepo** with npm workspaces. Key things to know:
+
+1. **Don't change runtime behavior** unless strictly required for the restructure
+2. **Keep tests passing** - especially contract/golden fixtures and behavioral tests
+3. **Extension must communicate end-to-end** with backend + database after any changes
+
+### Critical Constraints
+
+- The state machine, endpoints, and AI classification logic should NOT be rewritten
+- Move code first, refactor imports second
+- Changes to scripts/config should be minimal and documented
+
+## Monorepo Structure
 
 ```
-/home/robert/projects/kens-chrome-extension/
-├── src/                            # Source code
+/
+├── apps/
+│   ├── extension/        # Chrome extension (React, Vite, Tailwind)
+│   │   ├── src/          # Extension source code
+│   │   │   ├── background/   # Service worker - message routing, Chrome APIs
+│   │   │   ├── content/      # Content script - DOM manipulation
+│   │   │   ├── lib/          # Shared utilities (storage, messaging)
+│   │   │   ├── popup/        # Popup UI (React components)
+│   │   │   └── options/      # Options page (React components)
+│   │   ├── public/icons/ # Extension icons
+│   │   ├── manifest.json # Chrome MV3 manifest
+│   │   └── package.json  # Extension dependencies
+│   ├── backend/          # Node.js backend server
+│   │   ├── src/          # Backend source code
+│   │   │   ├── domain/       # Business logic types
+│   │   │   ├── routes/       # API endpoints (/capture, /fix, /recent)
+│   │   │   ├── llm/          # LLM client and prompts
+│   │   │   └── db/           # SQLite database connection
+│   │   ├── tests/        # Backend tests + golden fixtures
+│   │   │   └── golden/       # Contract validation fixtures
+│   │   ├── data/         # SQLite database (local dev)
+│   │   └── package.json  # Backend dependencies
+│   └── experiments/      # Safe vibe-coding lane (no prod deploy)
+│       └── README.md     # Explains purpose & guardrails
+├── packages/
+│   ├── contracts/        # Shared OpenAPI spec + TypeScript types
+│   │   ├── src/index.ts  # All shared type definitions
+│   │   └── openapi.yaml  # API contract specification
+│   └── sdk/              # Typed API client for calling backend
+│       └── src/index.ts  # createClient() and typed methods
+├── docs/                 # Architecture & decision documentation
+├── package.json          # Workspace root (npm workspaces)
+├── CLAUDE.md             # This file - development guide
+└── README.md             # Project documentation
+```
+
+## Commands to Run
+
+From the repository root:
+
+```bash
+# Install all dependencies (including workspaces)
+npm install
+
+# Run both backend and extension in dev mode
+npm run dev
+
+# Or run them separately
+npm run dev:backend    # Start backend at http://localhost:3000
+npm run dev:extension  # Start extension dev server (Vite HMR)
+
+# Build everything (in dependency order)
+npm run build
+
+# Run tests (backend only currently)
+npm test
+
+# Type checking (all packages)
+npm run typecheck
+
+# Linting
+npm run lint
+```
+
+## Where to Find Things
+
+| Looking for... | Location |
+|----------------|----------|
+| **OpenAPI spec** | `packages/contracts/openapi.yaml` |
+| **Shared TypeScript types** | `packages/contracts/src/index.ts` |
+| **Golden test fixtures** | `apps/backend/tests/golden/` |
+| **Backend API routes** | `apps/backend/src/routes/` |
+| **Extension popup screens** | `apps/extension/src/popup/` |
+| **Extension storage types** | `apps/extension/src/lib/storage.ts` |
+| **Extension messaging** | `apps/extension/src/lib/messaging.ts` |
+| **LLM prompts** | `apps/backend/src/prompts/` |
+
+## Extension Project Structure (apps/extension)
+
+```
+apps/extension/
+├── src/
 │   ├── background/
-│   │   └── index.ts                # Service worker - handles extension lifecycle, message routing, Chrome APIs
+│   │   └── index.ts        # Service worker - handles extension lifecycle, message routing, Chrome APIs
 │   ├── content/
-│   │   ├── index.ts                # Content script - runs on all web pages, can modify DOM
-│   │   └── content.css             # Content script isolated styles
+│   │   ├── index.ts        # Content script - runs on all web pages, can modify DOM
+│   │   └── content.css     # Content script isolated styles
 │   ├── lib/
-│   │   ├── index.ts                # Library exports
-│   │   ├── storage.ts              # Type-safe Chrome storage wrapper with TypeScript interfaces
-│   │   └── messaging.ts            # Type-safe message passing between background/popup/content
+│   │   ├── index.ts        # Library exports
+│   │   ├── storage.ts      # Type-safe Chrome storage wrapper (imports from @secondbrain/contracts)
+│   │   └── messaging.ts    # Type-safe message passing between background/popup/content
 │   ├── popup/
-│   │   ├── main.tsx                # React entry point for popup
-│   │   ├── Popup.tsx               # Popup UI component (toolbar icon click)
-│   │   ├── popup.html              # Popup HTML shell
-│   │   └── popup.css               # Popup styles
-│   ├── options/
-│   │   ├── main.tsx                # React entry point for options
-│   │   ├── Options.tsx             # Full-page settings UI component
-│   │   ├── options.html            # Options page HTML shell
-│   │   └── options.css             # Options page styles
-│   └── vite-env.d.ts               # Vite environment types
-├── public/
-│   └── icons/
-│       ├── icon-16.png             # 16x16 toolbar icon
-│       ├── icon-32.png             # 32x32 notification icon
-│       ├── icon-48.png             # 48x48 management page icon
-│       └── icon-128.png            # 128x128 web store icon
-├── dist/                           # Build output (generated by Vite)
-├── node_modules/                   # npm dependencies
-├── CLAUDE.md                       # This file - development guide
-├── README.md                       # Project documentation
-├── manifest.json                   # Chrome extension manifest (MV3)
-├── package.json                    # npm configuration and scripts
-├── package-lock.json               # npm lock file
-├── vite.config.ts                  # Vite build configuration with @crxjs plugin
-├── tsconfig.json                   # TypeScript configuration (strict mode)
-├── tsconfig.node.json              # TypeScript config for Node tools
-├── eslint.config.js                # ESLint configuration (flat config)
-├── tailwind.config.js              # Tailwind CSS configuration
-└── postcss.config.js               # PostCSS configuration
+│   │   ├── CaptureScreen.tsx      # Main capture input
+│   │   ├── ConfirmationScreen.tsx # After successful capture
+│   │   ├── FixScreen.tsx          # User correction flow
+│   │   ├── LogScreen.tsx          # Recent captures list
+│   │   ├── NeedsReviewScreen.tsx  # Low-confidence handling
+│   │   ├── OnboardingScreen.tsx   # First-run experience
+│   │   └── Popup.tsx              # Main popup state machine
+│   └── options/
+│       └── Options.tsx     # Full-page settings UI component
+├── public/icons/           # Extension icons (16, 32, 48, 128)
+├── manifest.json           # Chrome extension manifest (MV3)
+├── vite.config.ts          # Vite build configuration with @crxjs plugin
+├── tsconfig.json           # TypeScript configuration (strict mode)
+└── package.json            # Extension dependencies
 ```
 
 ## Tech Stack
@@ -63,13 +142,14 @@ A production-ready Chrome Extension template using **Manifest V3**, **TypeScript
 ## Organization Rules
 
 **Keep code organized and modularized:**
-- **Background logic** → `src/background/index.ts` - message handlers, lifecycle events, Chrome APIs
-- **Content scripts** → `src/content/index.ts` - DOM manipulation, page interaction
-- **Popup UI** → `src/popup/Popup.tsx` - React components with Tailwind
-- **Options UI** → `src/options/Options.tsx` - React components for settings
-- **Shared utilities** → `src/lib/` - storage, messaging, reusable functions
-- **Type definitions** → Co-located with usage or in `src/lib/` interfaces
-- **Tests** → Next to the code they test (when added)
+- **Shared contract types** → `packages/contracts/src/index.ts` - API types shared by extension and backend
+- **Background logic** → `apps/extension/src/background/index.ts` - message handlers, lifecycle events, Chrome APIs
+- **Content scripts** → `apps/extension/src/content/index.ts` - DOM manipulation, page interaction
+- **Popup UI** → `apps/extension/src/popup/` - React components with Tailwind
+- **Options UI** → `apps/extension/src/options/Options.tsx` - React components for settings
+- **Extension utilities** → `apps/extension/src/lib/` - storage, messaging, reusable functions
+- **Backend routes** → `apps/backend/src/routes/` - API endpoint handlers
+- **Backend tests** → `apps/backend/tests/` - vitest tests + golden fixtures
 
 **Modularity principles:**
 - Single responsibility per file
@@ -119,19 +199,22 @@ npm run build      # Production build (runs tsc + vite build)
 
 | Task | File(s) |
 |------|---------|
-| Add new setting | `src/lib/storage.ts` → StorageSchema |
-| Add new message type | `src/lib/messaging.ts` → MessageTypes |
-| Handle new message | `src/background/index.ts` → createMessageHandler |
-| Modify popup UI | `src/popup/Popup.tsx` |
-| Modify options page | `src/options/Options.tsx` |
-| Add page manipulation | `src/content/index.ts` |
-| Change permissions | `manifest.json` → permissions |
+| Add new shared type | `packages/contracts/src/index.ts` |
+| Add new extension setting | `apps/extension/src/lib/storage.ts` → StorageSchema |
+| Add new message type | `apps/extension/src/lib/messaging.ts` → MessageTypes |
+| Handle new message | `apps/extension/src/background/index.ts` → createMessageHandler |
+| Modify popup UI | `apps/extension/src/popup/Popup.tsx` |
+| Modify options page | `apps/extension/src/options/Options.tsx` |
+| Add page manipulation | `apps/extension/src/content/index.ts` |
+| Change permissions | `apps/extension/manifest.json` → permissions |
+| Add backend endpoint | `apps/backend/src/routes/` |
+| Modify LLM prompts | `apps/backend/src/prompts/` |
 
 ## Common Tasks
 
 ### Adding a New Storage Key
 
-1. Edit `src/lib/storage.ts`:
+1. Edit `apps/extension/src/lib/storage.ts`:
 ```typescript
 export interface StorageSchema {
   settings: { ... };
@@ -154,7 +237,7 @@ await setStorage("myFeature", { enabled: true, data: ["item1"] });
 
 ### Adding a New Message Type
 
-1. Edit `src/lib/messaging.ts`:
+1. Edit `apps/extension/src/lib/messaging.ts`:
 ```typescript
 export interface MessageTypes {
   // ... existing types ...
@@ -166,7 +249,7 @@ export interface MessageTypes {
 }
 ```
 
-2. Add handler in `src/background/index.ts`:
+2. Add handler in `apps/extension/src/background/index.ts`:
 ```typescript
 createMessageHandler({
   // ... existing handlers ...
@@ -191,7 +274,7 @@ if (result.success) {
 
 ### Adding a New Permission
 
-Edit `manifest.json`:
+Edit `apps/extension/manifest.json`:
 ```json
 {
   "permissions": [
@@ -239,7 +322,7 @@ chrome.commands.onCommand.addListener((command) => {
 
 ### Adding Context Menu Items
 
-In `src/background/index.ts`:
+In `apps/extension/src/background/index.ts`:
 ```typescript
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
@@ -259,7 +342,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
 ### Injecting UI into Web Pages
 
-In `src/content/index.ts`:
+In `apps/extension/src/content/index.ts`:
 ```typescript
 function injectUI() {
   // Create shadow root to isolate styles
@@ -288,7 +371,7 @@ function injectUI() {
 
 ### Making API Calls
 
-Create `src/lib/api.ts`:
+Create `apps/extension/src/lib/api.ts`:
 ```typescript
 const API_BASE = "https://api.example.com";
 
@@ -345,11 +428,11 @@ npm run typecheck # TypeScript check
 
 ## Loading the Extension
 
-1. Run `npm run dev` or `npm run build`
+1. Run `npm run dev:extension` or `npm run build:extension`
 2. Open `chrome://extensions/`
 3. Enable "Developer mode"
 4. Click "Load unpacked"
-5. Select the `dist` folder
+5. Select the `apps/extension/dist` folder
 
 ## Common Patterns
 

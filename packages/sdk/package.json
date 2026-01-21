@@ -1,0 +1,34 @@
+{
+  "name": "@secondbrain/sdk",
+  "version": "0.1.0",
+  "description": "Typed SDK for Second Brain OS API",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@secondbrain/contracts": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  },
+  "keywords": [
+    "second-brain",
+    "sdk",
+    "api-client"
+  ],
+  "author": "Robert Cousins",
+  "license": "MIT"
+}

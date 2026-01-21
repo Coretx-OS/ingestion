@@ -14,36 +14,11 @@
  *   const data = await getStorage("myFeature"); // typed!
  */
 
-// CanonicalRecord type (from backend OpenAPI spec)
-export interface CanonicalRecord {
-  schema_version: string;
-  type: 'person' | 'project' | 'idea' | 'admin';
-  title: string;
-  confidence: number;
-  clarification_question: string | null;
-  links: string[];
-  person: {
-    person_name: string | null;
-    context: string | null;
-    follow_up: string | null;
-  };
-  project: {
-    project_name: string | null;
-    project_status: 'active' | 'waiting' | 'blocked' | 'someday' | 'done';
-    next_action: string | null;
-    notes: string | null;
-  };
-  idea: {
-    idea_one_liner: string | null;
-    notes: string | null;
-  };
-  admin: {
-    task: string | null;
-    due_date: string | null;
-    task_status: 'open' | 'done';
-    notes: string | null;
-  };
-}
+// Re-export shared types from contracts package for backward compatibility
+export type { CanonicalRecord, RecordType } from '@secondbrain/contracts';
+
+// Import for local use
+import type { CanonicalRecord } from '@secondbrain/contracts';
 
 export interface StorageSchema {
   // Extension settings - add your settings here

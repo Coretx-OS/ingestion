@@ -14,25 +14,98 @@ The core design goal is **trust**:
 
 ---
 
-## Repo structure (important)
+## Repository Layout and Development Flow
 
+This is a **monorepo** structured to support:
+- A **stable baseline product lane** (Chrome extension + backend + DB)
+- A **safe vibe-coding lane** for experiments that cannot disrupt the baseline
+- **Shared contract/code packages** so extension, backend, and experiments reuse the same types/specs
+
+### Directory Structure
+
+```
 /
-├─ src/ # Chrome extension source (Vite)
-├─ dist/ # Built extension
-├─ backend/
-│ ├─ src/ # Backend source (Node + TS)
-│ ├─ tests/ # Backend tests
-│ ├─ data/ # SQLite database (local dev)
-│ └─ prompts/ # LLM prompt contracts
-├─ tests/
-│ └─ golden/ # Canonical golden fixtures (JSON)
-└─ docs/ # Architecture & decisions
+├── apps/
+│   ├── extension/        # Chrome extension (React, Vite, Tailwind)
+│   │   ├── src/          # Extension source code
+│   │   ├── public/       # Static assets (icons)
+│   │   ├── manifest.json # Chrome MV3 manifest
+│   │   └── package.json  # Extension dependencies
+│   ├── backend/          # Node.js backend server
+│   │   ├── src/          # Backend source code
+│   │   ├── tests/        # Backend tests + golden fixtures
+│   │   ├── data/         # SQLite database (local dev)
+│   │   └── package.json  # Backend dependencies
+│   └── experiments/      # Safe vibe-coding lane (no prod deploy)
+│       └── README.md     # Explains purpose & guardrails
+├── packages/
+│   ├── contracts/        # Shared OpenAPI spec + TypeScript types
+│   │   ├── src/index.ts  # All shared type definitions
+│   │   └── openapi.yaml  # API contract specification
+│   └── sdk/              # Typed API client for calling backend
+│       └── src/index.ts  # createClient() and typed methods
+├── docs/                 # Architecture & decision documentation
+├── package.json          # Workspace root (npm workspaces)
+├── CLAUDE.md             # AI assistant development guide
+└── README.md             # This file
+```
 
-yaml
-Copy code
+### Why Monorepo?
 
-⚠️ **There is intentionally only ONE extension source tree** (`/src`).  
-Avoid creating parallel `/extension` roots — this was an early source of confusion.
+1. **Single source of truth for types**: `packages/contracts` defines API types once, used by both extension and backend
+2. **Consistent tooling**: Shared TypeScript, ESLint, and build configurations
+3. **Safe experimentation**: `apps/experiments/` allows vibe-coding without risking the stable baseline
+4. **Easier refactoring**: Changes to shared contracts immediately surface type errors across all apps
+
+### Development Commands
+
+From the repository root:
+
+```bash
+# Install all dependencies (including workspaces)
+npm install
+
+# Run both backend and extension in dev mode
+npm run dev
+
+# Or run them separately
+npm run dev:backend    # Start backend at http://localhost:3000
+npm run dev:extension  # Start extension dev server (Vite HMR)
+
+# Build everything (in dependency order)
+npm run build
+
+# Run tests
+npm test               # Runs backend tests
+
+# Type checking (all packages)
+npm run typecheck
+
+# Linting
+npm run lint
+```
+
+### How to Add a New Experiment
+
+1. Create a folder: `apps/experiments/my-experiment/`
+2. Add a `package.json` with its own dependencies
+3. Import types from `@secondbrain/contracts`
+4. Build and test independently
+
+### How to Promote an Experiment to Baseline
+
+1. Extract shared types to `packages/contracts` if needed
+2. Create a PR to add the feature to `apps/extension` or `apps/backend`
+3. Archive or delete the experiment folder
+4. Update documentation
+
+### Golden Test Fixtures
+
+Golden fixtures live at `apps/backend/tests/golden/`:
+- `capture_cases.json` - Validates capture endpoint contracts
+- `fix_cases.json` - Validates fix endpoint contracts
+
+These tests validate fixture SHAPE and invariants only (no LLM calls).
 
 ---
 

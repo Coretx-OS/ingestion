@@ -1,5 +1,5 @@
 {
-  "name": "secondbrain-backend",
+  "name": "@secondbrain/backend",
   "version": "0.1.0",
   "description": "Second Brain OS backend - trust-first thought capture API",
   "type": "module",
@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@secondbrain/contracts": "*",
     "express": "^4.18.2",
     "better-sqlite3": "^9.6.0",
     "dotenv": "^16.4.5",

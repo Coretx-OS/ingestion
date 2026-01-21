@@ -1,46 +1,40 @@
 {
-  "name": "chrome-extension-boilerplate",
+  "name": "secondbrain-monorepo",
   "version": "1.0.0",
-  "description": "Production-ready Chrome Extension boilerplate with TypeScript, Vite, and Manifest V3",
+  "private": true,
+  "description": "Second Brain OS - Monorepo for Chrome extension, backend, and shared packages",
   "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "lint": "eslint src --ext .ts,.tsx",
-    "typecheck": "tsc --noEmit"
+    "dev": "npm run dev:backend & npm run dev:extension",
+    "dev:backend": "npm run dev -w @secondbrain/backend",
+    "dev:extension": "npm run dev -w @secondbrain/extension",
+    "build": "npm run build -w @secondbrain/contracts && npm run build -w @secondbrain/sdk && npm run build -w @secondbrain/backend && npm run build -w @secondbrain/extension",
+    "build:contracts": "npm run build -w @secondbrain/contracts",
+    "build:sdk": "npm run build -w @secondbrain/sdk",
+    "build:backend": "npm run build -w @secondbrain/backend",
+    "build:extension": "npm run build -w @secondbrain/extension",
+    "test": "npm run test -w @secondbrain/backend",
+    "test:backend": "npm run test -w @secondbrain/backend",
+    "lint": "npm run lint -w @secondbrain/extension",
+    "typecheck": "npm run typecheck -w @secondbrain/contracts && npm run typecheck -w @secondbrain/sdk && npm run typecheck -w @secondbrain/backend && npm run typecheck -w @secondbrain/extension"
   },
-  "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
-  "devDependencies": {
-    "@crxjs/vite-plugin": "^2.0.0-beta.28",
-    "@types/chrome": "^0.0.287",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "@typescript-eslint/eslint-plugin": "^8.16.0",
-    "@typescript-eslint/parser": "^8.16.0",
-    "@vitejs/plugin-react": "^4.3.4",
-    "autoprefixer": "^10.4.20",
-    "eslint": "^9.16.0",
-    "postcss": "^8.4.49",
-    "tailwindcss": "^3.4.16",
-    "typescript": "^5.7.2",
-    "vite": "^6.0.3"
-  },
-  "author": "Ken Kai",
+  "author": "Robert Cousins",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/KenKaiii/kens-chrome-extension"
+    "url": "https://github.com/robert-cousins/kens-chrome-extension"
   },
   "keywords": [
+    "second-brain",
     "chrome-extension",
-    "manifest-v3",
-    "typescript",
-    "vite",
-    "react",
-    "boilerplate"
-  ]
+    "monorepo",
+    "typescript"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }

@@ -22,6 +22,8 @@ import type {
   DigestPreviewResponse,
   ReviewPreviewRequest,
   ReviewPreviewResponse,
+  YouTubeCaptureRequest,
+  YouTubeCaptureResponse,
 } from '@secondbrain/contracts';
 
 // Re-export commonly used types
@@ -32,6 +34,7 @@ export type {
   FixResponse,
   CanonicalRecord,
   RecentResponse,
+  YouTubeCaptureResponse,
 } from '@secondbrain/contracts';
 
 /**
@@ -179,6 +182,25 @@ export function createClient(config: SDKConfig) {
       body: ReviewPreviewRequest
     ): Promise<ReviewPreviewResponse> {
       return request<ReviewPreviewResponse>('POST', '/review/preview', body);
+    },
+
+    /**
+     * Capture a YouTube video, generate transcript summary, and store
+     */
+    async captureYouTube(params: {
+      client: ClientMeta;
+      video_url: string;
+      video_id: string;
+    }): Promise<YouTubeCaptureResponse> {
+      const body: YouTubeCaptureRequest = {
+        client: params.client,
+        youtube: {
+          video_url: params.video_url,
+          video_id: params.video_id,
+          captured_at: new Date().toISOString(),
+        },
+      };
+      return request<YouTubeCaptureResponse>('POST', '/youtube/capture', body);
     },
   };
 }

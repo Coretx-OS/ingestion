@@ -8,9 +8,9 @@ interface LogItem {
   captured_at: string;
   raw_text_preview: string;
   status: "filed" | "needs_review" | "fixed";
-  type: "person" | "project" | "idea" | "admin";
+  type: "person" | "project" | "idea" | "admin" | "youtube";
   title: string;
-  confidence: number;
+  confidence: number | null;
   record_id: string | null;
 }
 
@@ -69,6 +69,12 @@ export function LogScreen({ onItemClick, onNewCapture }: LogScreenProps) {
   };
 
   const handleItemClick = async (item: LogItem) => {
+    // YouTube items don't support the Fix flow - they're already processed
+    if (item.type === "youtube") {
+      // TODO: Could open a detail view for YouTube summaries in the future
+      return;
+    }
+
     // Load this item into currentCapture and navigate
     await setStorage("currentCapture", {
       capture_id: item.capture_id,
@@ -77,7 +83,7 @@ export function LogScreen({ onItemClick, onNewCapture }: LogScreenProps) {
       status: item.status === "fixed" ? "filed" : item.status,
       type: item.type,
       title: item.title,
-      confidence: item.confidence,
+      confidence: item.confidence ?? 0, // Default to 0 if null (shouldn't happen for non-YouTube)
       clarification_question: null,
       classification_record: null, // Would need to fetch full record if needed
     });
@@ -91,6 +97,7 @@ export function LogScreen({ onItemClick, onNewCapture }: LogScreenProps) {
       project: { color: "bg-blue-100 text-blue-800", icon: "📁" },
       idea: { color: "bg-purple-100 text-purple-800", icon: "💡" },
       admin: { color: "bg-gray-100 text-gray-800", icon: "📋" },
+      youtube: { color: "bg-red-100 text-red-800", icon: "▶" },
     };
 
     const badge = badges[type as keyof typeof badges] || badges.admin;
@@ -188,7 +195,11 @@ export function LogScreen({ onItemClick, onNewCapture }: LogScreenProps) {
 
             <div className="mt-1 flex items-center justify-between">
               <span className="text-xs text-gray-500">
-                {(item.confidence * 100).toFixed(0)}% confidence
+                {item.type === "youtube"
+                  ? "YouTube Summary"
+                  : item.confidence !== null
+                    ? `${(item.confidence * 100).toFixed(0)}% confidence`
+                    : ""}
               </span>
               {item.status === "needs_review" && (
                 <span className="text-xs text-yellow-600">Needs review</span>

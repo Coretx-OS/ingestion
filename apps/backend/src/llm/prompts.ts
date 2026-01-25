@@ -73,6 +73,13 @@ export function getReviewPrompt(): string {
 }
 
 /**
+ * Get the YouTube summary prompt (for POST /youtube/capture)
+ */
+export function getYouTubeSummaryPrompt(): string {
+  return loadPrompt('youtube-summary');
+}
+
+/**
  * Preload all prompts at startup (optional, for faster first requests)
  */
 export function preloadAllPrompts(): void {
@@ -80,5 +87,6 @@ export function preloadAllPrompts(): void {
   getFixPrompt();
   getDigestPrompt();
   getReviewPrompt();
+  getYouTubeSummaryPrompt();
   console.log('✅ All prompts preloaded');
 }

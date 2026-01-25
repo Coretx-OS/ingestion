@@ -202,7 +202,7 @@ export interface RecentItem {
   captured_at: string;
   raw_text_preview: string;
   status: 'filed' | 'needs_review' | 'fixed';
-  type: RecordType;
+  type: RecordType | 'youtube'; // Extended to include YouTube captures
   title: string;
   confidence: number | null;
   record_id: string | null;
@@ -276,3 +276,38 @@ export interface FixOutput {
   change_summary: string | null;
   record: CanonicalRecord | null;
 }
+
+// =================================================================
+// YOUTUBE CAPTURE TYPES
+// =================================================================
+
+/**
+ * YouTube capture request - sent from extension when user clicks
+ * "Capture YouTube Summary" while on a YouTube video page
+ */
+export interface YouTubeCaptureRequest {
+  client: ClientMeta;
+  youtube: {
+    video_url: string;
+    video_id: string;
+    captured_at: string; // ISO datetime
+  };
+}
+
+/**
+ * YouTube capture response - MINIMAL per MVP constraint
+ * No summary or metadata in response - /recent is source of truth
+ */
+export interface YouTubeCaptureResponse {
+  status: 'completed' | 'failed';
+  recordId: string | null;
+  error?: {
+    stage: 'transcript' | 'metadata' | 'llm' | 'db';
+    message: string;
+  };
+}
+
+/**
+ * Extended type for recent items - includes 'youtube' in addition to RecordType
+ */
+export type RecentItemType = RecordType | 'youtube';

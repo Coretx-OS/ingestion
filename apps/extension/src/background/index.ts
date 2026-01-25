@@ -213,6 +213,49 @@ createMessageHandler({
     const data = await response.json();
     return data; // Returns RecentResponse with items array and next_cursor
   },
+
+  // Second Brain OS - Capture YouTube video
+  CAPTURE_YOUTUBE: async (payload) => {
+    const [settings, clientMeta] = await Promise.all([
+      getStorage("settings"),
+      getStorage("clientMeta"),
+    ]);
+
+    if (!clientMeta) {
+      throw new Error("Client metadata not initialized");
+    }
+
+    const apiBaseUrl = settings?.apiBaseUrl ?? "http://localhost:3000";
+
+    // Construct YouTubeCaptureRequest per OpenAPI spec
+    const captureRequest = {
+      client: {
+        app: clientMeta.app,
+        app_version: clientMeta.app_version,
+        device_id: clientMeta.device_id,
+        timezone: clientMeta.timezone,
+      },
+      youtube: {
+        video_url: payload.video_url,
+        video_id: payload.video_id,
+        captured_at: new Date().toISOString(),
+      },
+    };
+
+    const response = await fetch(`${apiBaseUrl}/youtube/capture`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(captureRequest),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: "Unknown error" }));
+      throw new Error(error.message || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data; // Returns YouTubeCaptureResponse with status, recordId, error?
+  },
 });
 
 // Context menu setup

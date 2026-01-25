@@ -1,12 +1,13 @@
-# Second Brain OS – Chrome Extension + Backend
+# Second Brain OS – Personal Knowledge Capture Platform
 
-Second Brain OS is a lightweight, trust-first personal knowledge capture system.
+Second Brain OS is a lightweight, trust-first personal knowledge capture platform.
 
 It consists of:
-- A **Chrome extension** for frictionless capture (including YouTube video summarization)
-- A **local backend API** for classification, validation, storage, and review
+- A **Chrome extension** for frictionless text capture with AI classification
+- A **backend API** for classification, validation, storage, and review
+- A **YouTube Daily Briefing** instance for automated video summarization and strategic digests
+- A **shared core package** providing LLM, embeddings, transcripts, and storage services
 - A **golden-test-driven contract** between user intent, AI output, and persistence
-- **YouTube capture** for video transcript summarization and storage
 
 The core design goal is **trust**:
 - The system must never silently misfile low-confidence data
@@ -17,47 +18,64 @@ The core design goal is **trust**:
 
 ## Repository Layout and Development Flow
 
-This is a **monorepo** structured to support:
-- A **stable baseline product lane** (Chrome extension + backend + DB)
-- A **safe vibe-coding lane** for experiments that cannot disrupt the baseline
-- **Shared contract/code packages** so extension, backend, and experiments reuse the same types/specs
+This is a **monorepo** with a **Core/Instance architecture**:
+- **Core** (`packages/core/`): Shared infrastructure services used by all instances
+- **Instances** (`apps/`): Domain-specific applications built on core services
+- **Shared contracts** (`packages/contracts/`): TypeScript types and OpenAPI specs
 
 ### Directory Structure
 
 ```
 /
 ├── apps/
-│   ├── extension/        # Chrome extension (React, Vite, Tailwind)
-│   │   ├── src/          # Extension source code
-│   │   ├── public/       # Static assets (icons)
-│   │   ├── manifest.json # Chrome MV3 manifest
-│   │   └── package.json  # Extension dependencies
-│   ├── backend/          # Node.js backend server
-│   │   ├── src/          # Backend source code
-│   │   ├── tests/        # Backend tests + golden fixtures
-│   │   ├── data/         # SQLite database (local dev)
-│   │   └── package.json  # Backend dependencies
-│   └── experiments/      # Safe vibe-coding lane (no prod deploy)
-│       └── README.md     # Explains purpose & guardrails
+│   ├── extension/          # Chrome extension (React, Vite, Tailwind)
+│   │   ├── src/            # Extension source code
+│   │   ├── public/         # Static assets (icons)
+│   │   ├── manifest.json   # Chrome MV3 manifest
+│   │   └── package.json    # Extension dependencies
+│   ├── backend/            # Main backend server
+│   │   ├── src/            # Backend source code
+│   │   ├── tests/          # Backend tests + golden fixtures
+│   │   ├── data/           # SQLite database (local dev)
+│   │   └── package.json    # Backend dependencies
+│   ├── youtube-briefing/   # YouTube Daily Briefing instance
+│   │   ├── src/            # Briefing-specific code
+│   │   │   ├── adapters/   # Core service adapters
+│   │   │   ├── db/         # SQLite schema + queries
+│   │   │   ├── digest/     # Digest generation logic
+│   │   │   ├── email/      # Email delivery (Resend)
+│   │   │   ├── jobs/       # Capture + digest jobs
+│   │   │   ├── relevance/  # Topic relevance scoring
+│   │   │   └── scheduler/  # Cron job scheduling
+│   │   ├── data/           # SQLite database
+│   │   └── package.json    # Instance dependencies
+│   └── experiments/        # Safe vibe-coding lane (no prod deploy)
+│       └── README.md       # Explains purpose & guardrails
 ├── packages/
-│   ├── contracts/        # Shared OpenAPI spec + TypeScript types
-│   │   ├── src/index.ts  # All shared type definitions
-│   │   └── openapi.yaml  # API contract specification
-│   ├── sdk/              # Typed API client for calling backend
-│   │   └── src/index.ts  # createClient() and typed methods
-│   └── core/             # (Planned) Shared services: LLM, embeddings, storage
-├── docs/                 # Architecture & decision documentation
-├── package.json          # Workspace root (npm workspaces)
-├── CLAUDE.md             # AI assistant development guide
-└── README.md             # This file
+│   ├── contracts/          # Shared OpenAPI spec + TypeScript types
+│   │   ├── src/index.ts    # All shared type definitions
+│   │   └── openapi.yaml    # API contract specification
+│   ├── core/               # Shared infrastructure services
+│   │   └── src/
+│   │       ├── llm/        # LLM client abstraction (OpenAI)
+│   │       ├── embeddings/ # Text embedding service
+│   │       ├── transcript/ # YouTube transcript providers
+│   │       └── storage/    # Storage adapters
+│   └── sdk/                # Typed API client for calling backend
+│       └── src/index.ts    # createClient() and typed methods
+├── docs/                   # Architecture & decision documentation
+├── package.json            # Workspace root (npm workspaces)
+├── CLAUDE.md               # AI assistant development guide
+└── README.md               # This file
 ```
 
 ### Why Monorepo?
 
-1. **Single source of truth for types**: `packages/contracts` defines API types once, used by both extension and backend
-2. **Consistent tooling**: Shared TypeScript, ESLint, and build configurations
-3. **Safe experimentation**: `apps/experiments/` allows vibe-coding without risking the stable baseline
-4. **Easier refactoring**: Changes to shared contracts immediately surface type errors across all apps
+1. **Single source of truth for types**: `packages/contracts` defines API types once, used by all apps
+2. **Shared core services**: `packages/core` provides LLM, embeddings, transcripts to all instances
+3. **Consistent tooling**: Shared TypeScript, ESLint, and build configurations
+4. **Safe experimentation**: `apps/experiments/` allows vibe-coding without risking the stable baseline
+5. **Easier refactoring**: Changes to shared contracts immediately surface type errors across all apps
 
 ### Development Commands
 
@@ -73,9 +91,15 @@ npm run dev
 # Or run them separately
 npm run dev:backend    # Start backend at http://localhost:3000
 npm run dev:extension  # Start extension dev server (Vite HMR)
+npm run dev:briefing   # Start YouTube briefing instance
 
 # Build everything (in dependency order)
 npm run build
+
+# Build individual packages
+npm run build:core       # Build core package
+npm run build:contracts  # Build contracts package
+npm run build:briefing   # Build YouTube briefing instance
 
 # Run tests
 npm test               # Runs backend tests
@@ -86,20 +110,6 @@ npm run typecheck
 # Linting
 npm run lint
 ```
-
-### How to Add a New Experiment
-
-1. Create a folder: `apps/experiments/my-experiment/`
-2. Add a `package.json` with its own dependencies
-3. Import types from `@secondbrain/contracts`
-4. Build and test independently
-
-### How to Promote an Experiment to Baseline
-
-1. Extract shared types to `packages/contracts` if needed
-2. Create a PR to add the feature to `apps/extension` or `apps/backend`
-3. Archive or delete the experiment folder
-4. Update documentation
 
 ### Golden Test Fixtures
 
@@ -113,20 +123,29 @@ These tests validate fixture SHAPE and invariants only (no LLM calls).
 
 ## Current Features
 
-### Text Capture
+### Chrome Extension – Text Capture
 - Capture raw text from any webpage via Chrome extension
 - AI-powered classification into: person, project, idea, admin
 - Confidence-based filing with `needs_review` for low-confidence captures
 - User correction flow for misclassified items
 
-### YouTube Video Capture
+### Chrome Extension – YouTube Capture
 - Capture YouTube videos while watching (button appears on youtube.com)
 - Automatic transcript fetching via `youtube-transcript` package
 - Metadata retrieval via YouTube Data API v3
 - LLM-generated 3-5 sentence summaries
 - Storage in `youtube_captures` table
 
-### API Endpoints
+### YouTube Daily Briefing Instance (`apps/youtube-briefing/`)
+A standalone instance for automated YouTube channel monitoring and strategic digests:
+- **Channel Monitoring**: Track multiple YouTube channels for new videos
+- **Automated Capture**: Cron-scheduled jobs fetch transcripts and generate summaries
+- **Relevance Scoring**: Embedding-based scoring against configurable topics of interest
+- **Digest Generation**: LLM-generated strategic briefings from high-relevance videos
+- **Email Delivery**: Daily digests sent via Resend API
+- **Scheduler**: Node-cron based job scheduling for capture and digest generation
+
+### Backend API Endpoints
 - `POST /capture` - Text capture and classification
 - `POST /fix` - User correction of misclassified items
 - `GET /recent` - Paginated recent captures (includes YouTube)
@@ -136,19 +155,22 @@ These tests validate fixture SHAPE and invariants only (no LLM calls).
 
 ---
 
-## Architecture in Progress
+## Architecture: Core/Instance Separation
 
-The codebase is evolving toward a **Core/Instance** separation:
+The codebase uses a **Core/Instance** architecture:
 
-- **Core** (`packages/core/` - planned): Shared infrastructure
-  - LLM client abstraction
-  - Embedding service
-  - Transcript providers
-  - Storage adapters
+### Core Package (`packages/core/`)
+Shared infrastructure services used by all instances:
+- **LLM Client** (`llm/`): OpenAI chat completions abstraction
+- **Embeddings Service** (`embeddings/`): Text-embedding-3-small for semantic similarity
+- **Transcript Providers** (`transcript/`): YouTube transcript fetching with fallbacks
+- **Storage Adapters** (`storage/`): Database abstraction layer
 
-- **Instances** (`apps/instances/` - planned): Domain-specific applications
-  - YouTube Daily Briefing (in development)
-  - Future: CRM sync, directory agents, etc.
+### Instances (`apps/`)
+Domain-specific applications built on core services:
+- **Backend** (`apps/backend/`): Main API server for Chrome extension
+- **YouTube Briefing** (`apps/youtube-briefing/`): Automated video monitoring and digests
+- **Extension** (`apps/extension/`): Chrome extension UI
 
 This architecture enables multiple "Second Brain" applications to share the same substrate while remaining independently deployable.
 

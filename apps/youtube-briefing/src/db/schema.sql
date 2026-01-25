@@ -170,3 +170,37 @@ CREATE TABLE IF NOT EXISTS digests (
 
 CREATE INDEX IF NOT EXISTS idx_digests_profile ON digests(profile_id);
 CREATE INDEX IF NOT EXISTS idx_digests_generated ON digests(generated_at DESC);
+
+-- =================================================================
+-- EMAIL_SUBSCRIBERS: Email recipients for digests (Phase 5)
+-- =================================================================
+CREATE TABLE IF NOT EXISTS email_subscribers (
+  id TEXT PRIMARY KEY,
+  profile_id TEXT NOT NULL,
+  email TEXT NOT NULL,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  
+  FOREIGN KEY (profile_id) REFERENCES user_profiles(id),
+  UNIQUE(profile_id, email)
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_subscribers_profile ON email_subscribers(profile_id);
+
+-- =================================================================
+-- EMAIL_LOG: Audit trail of sent emails (Phase 5)
+-- =================================================================
+CREATE TABLE IF NOT EXISTS email_log (
+  id TEXT PRIMARY KEY,
+  digest_id TEXT NOT NULL,
+  recipient TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('sent', 'failed')),
+  message_id TEXT,
+  error_message TEXT,
+  sent_at TEXT NOT NULL,
+  
+  FOREIGN KEY (digest_id) REFERENCES digests(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_log_digest ON email_log(digest_id);
+CREATE INDEX IF NOT EXISTS idx_email_log_sent ON email_log(sent_at DESC);

@@ -28,6 +28,13 @@ import {
   formatDigestHtml,
   getRecentDigests,
 } from './digest/generator.js';
+import {
+  sendDigestEmail,
+  sendDigestToSubscribers,
+  addSubscriber,
+  removeSubscriber,
+  listSubscribers,
+} from './email/sender.js';
 
 dotenv.config();
 
@@ -403,6 +410,138 @@ app.get('/digests/:id/html', (req, res) => {
   }
 });
 
+// =================================================================
+// EMAIL (Phase 5)
+// =================================================================
+
+/**
+ * POST /jobs/youtube/send-digest
+ * 
+ * Generate and send a digest to all subscribers.
+ * Query params:
+ *   - profile_id: Profile to generate/send for (required)
+ *   - dry_run: If true, generate but don't send email
+ */
+app.post('/jobs/youtube/send-digest', async (req, res) => {
+  try {
+    const profileId = req.query.profile_id as string;
+    const dryRun = req.query.dry_run === 'true';
+    
+    if (!profileId) {
+      return res.status(400).json({ error: 'profile_id is required' });
+    }
+    
+    console.log(`[SendDigest] Generating for profile ${profileId}${dryRun ? ' (dry run)' : ''}...`);
+    
+    // Generate digest
+    const digest = await generateDigest(profileId);
+    
+    if (digest.bullets.length === 0) {
+      return res.json({
+        message: 'No videos to include in digest',
+        digest,
+        sent: 0,
+      });
+    }
+    
+    if (dryRun) {
+      return res.json({
+        message: 'Dry run - digest generated but not sent',
+        digest,
+        dryRun: true,
+      });
+    }
+    
+    // Send to subscribers
+    const sendResult = await sendDigestToSubscribers(digest);
+    
+    console.log(`[SendDigest] Sent to ${sendResult.sent} subscribers`);
+    
+    res.json({
+      message: `Sent to ${sendResult.sent} subscribers`,
+      digest,
+      ...sendResult,
+    });
+  } catch (error) {
+    console.error('[SendDigest] Error:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * POST /subscribers
+ * 
+ * Add an email subscriber to a profile.
+ * Body: { profileId, email }
+ */
+app.post('/subscribers', (req, res) => {
+  try {
+    const { profileId, email } = req.body as { profileId?: string; email?: string };
+    
+    if (!profileId || !email) {
+      return res.status(400).json({ error: 'profileId and email are required' });
+    }
+    
+    addSubscriber(profileId, email);
+    
+    res.status(201).json({ message: 'Subscriber added', profileId, email });
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * DELETE /subscribers
+ * 
+ * Remove an email subscriber.
+ * Body: { profileId, email }
+ */
+app.delete('/subscribers', (req, res) => {
+  try {
+    const { profileId, email } = req.body as { profileId?: string; email?: string };
+    
+    if (!profileId || !email) {
+      return res.status(400).json({ error: 'profileId and email are required' });
+    }
+    
+    removeSubscriber(profileId, email);
+    
+    res.json({ message: 'Subscriber removed', profileId, email });
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * GET /subscribers
+ * 
+ * List subscribers for a profile.
+ * Query params:
+ *   - profile_id: Profile to list subscribers for (required)
+ */
+app.get('/subscribers', (req, res) => {
+  try {
+    const profileId = req.query.profile_id as string;
+    
+    if (!profileId) {
+      return res.status(400).json({ error: 'profile_id is required' });
+    }
+    
+    const subscribers = listSubscribers(profileId);
+    res.json({ subscribers, count: subscribers.length });
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 // Startup
 function start() {
   // Initialize database
@@ -430,6 +569,11 @@ function start() {
 ║    GET  /digests?profile_id=...                          ║
 ║    GET  /digests/:id/text                                ║
 ║    GET  /digests/:id/html                                ║
+║  Email (Phase 5):                                        ║
+║    POST /jobs/youtube/send-digest?profile_id=...         ║
+║    POST /subscribers                                     ║
+║    DELETE /subscribers                                   ║
+║    GET  /subscribers?profile_id=...                      ║
 ╚══════════════════════════════════════════════════════════╝
     `);
   });

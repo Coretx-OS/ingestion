@@ -153,3 +153,20 @@ CREATE TABLE IF NOT EXISTS video_scores (
 CREATE INDEX IF NOT EXISTS idx_video_scores_video ON video_scores(video_id);
 CREATE INDEX IF NOT EXISTS idx_video_scores_profile ON video_scores(profile_id);
 CREATE INDEX IF NOT EXISTS idx_video_scores_combined ON video_scores(combined_score DESC);
+
+-- =================================================================
+-- DIGESTS: Generated briefings (Phase 4)
+-- =================================================================
+CREATE TABLE IF NOT EXISTS digests (
+  id TEXT PRIMARY KEY,
+  profile_id TEXT NOT NULL,
+  generated_at TEXT NOT NULL,
+  digest_json TEXT NOT NULL,
+  minutes_saved INTEGER NOT NULL,
+  video_count INTEGER NOT NULL,
+  
+  FOREIGN KEY (profile_id) REFERENCES user_profiles(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_digests_profile ON digests(profile_id);
+CREATE INDEX IF NOT EXISTS idx_digests_generated ON digests(generated_at DESC);

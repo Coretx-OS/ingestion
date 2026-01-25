@@ -22,6 +22,12 @@ import {
   addKnowledge,
   type UserProfile,
 } from './relevance/engine.js';
+import {
+  generateDigest,
+  formatDigestText,
+  formatDigestHtml,
+  getRecentDigests,
+} from './digest/generator.js';
 
 dotenv.config();
 
@@ -285,6 +291,118 @@ app.post('/knowledge', async (req, res) => {
   }
 });
 
+// =================================================================
+// DIGEST (Phase 4)
+// =================================================================
+
+/**
+ * POST /jobs/youtube/generate-digest
+ * 
+ * Generate a digest for a profile.
+ * Query params:
+ *   - profile_id: Profile to generate digest for (required)
+ *   - max_videos: Max videos to include (default 10)
+ */
+app.post('/jobs/youtube/generate-digest', async (req, res) => {
+  try {
+    const profileId = req.query.profile_id as string;
+    const maxVideos = parseInt(req.query.max_videos as string) || 10;
+    
+    if (!profileId) {
+      return res.status(400).json({ error: 'profile_id is required' });
+    }
+    
+    console.log(`[GenerateDigest] Generating for profile ${profileId}...`);
+    
+    const digest = await generateDigest(profileId, maxVideos);
+    
+    console.log(`[GenerateDigest] Generated: ${digest.bullets.length} bullets, saved ${digest.minutesSaved} min`);
+    
+    res.json(digest);
+  } catch (error) {
+    console.error('[GenerateDigest] Error:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * GET /digests
+ * 
+ * Get recent digests for a profile.
+ * Query params:
+ *   - profile_id: Profile to get digests for (required)
+ *   - limit: Max digests to return (default 10)
+ */
+app.get('/digests', (req, res) => {
+  try {
+    const profileId = req.query.profile_id as string;
+    const limit = parseInt(req.query.limit as string) || 10;
+    
+    if (!profileId) {
+      return res.status(400).json({ error: 'profile_id is required' });
+    }
+    
+    const digests = getRecentDigests(profileId, limit);
+    res.json({ digests, count: digests.length });
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * GET /digests/:id/text
+ * 
+ * Get a digest formatted as plain text.
+ */
+app.get('/digests/:id/text', (req, res) => {
+  try {
+    const db = getDb();
+    const row = db.prepare('SELECT digest_json FROM digests WHERE id = ?').get(req.params.id) as { digest_json: string } | undefined;
+    
+    if (!row) {
+      return res.status(404).json({ error: 'Digest not found' });
+    }
+    
+    const digest = JSON.parse(row.digest_json);
+    const text = formatDigestText(digest);
+    
+    res.type('text/plain').send(text);
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * GET /digests/:id/html
+ * 
+ * Get a digest formatted as HTML (for email preview).
+ */
+app.get('/digests/:id/html', (req, res) => {
+  try {
+    const db = getDb();
+    const row = db.prepare('SELECT digest_json FROM digests WHERE id = ?').get(req.params.id) as { digest_json: string } | undefined;
+    
+    if (!row) {
+      return res.status(404).json({ error: 'Digest not found' });
+    }
+    
+    const digest = JSON.parse(row.digest_json);
+    const html = formatDigestHtml(digest);
+    
+    res.type('text/html').send(html);
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 // Startup
 function start() {
   // Initialize database
@@ -307,6 +425,11 @@ function start() {
 ║    POST /jobs/youtube/score-videos?profile_id=...        ║
 ║    GET  /videos/top?profile_id=...                       ║
 ║    POST /knowledge                                       ║
+║  Digest (Phase 4):                                       ║
+║    POST /jobs/youtube/generate-digest?profile_id=...     ║
+║    GET  /digests?profile_id=...                          ║
+║    GET  /digests/:id/text                                ║
+║    GET  /digests/:id/html                                ║
 ╚══════════════════════════════════════════════════════════╝
     `);
   });

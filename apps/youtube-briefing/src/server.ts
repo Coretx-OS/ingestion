@@ -35,6 +35,10 @@ import {
   removeSubscriber,
   listSubscribers,
 } from './email/sender.js';
+import {
+  runDailyBrief,
+  getRecentRuns,
+} from './scheduler/dailyBrief.js';
 
 dotenv.config();
 
@@ -542,6 +546,85 @@ app.get('/subscribers', (req, res) => {
   }
 });
 
+// =================================================================
+// DAILY BRIEF - FULL PIPELINE (Phase 6)
+// =================================================================
+
+/**
+ * POST /jobs/daily-brief
+ * 
+ * Run the full daily briefing pipeline:
+ * 1. Monitor channels for new videos
+ * 2. Score videos for relevance/novelty
+ * 3. Generate digests for all profiles
+ * 4. Send to subscribers
+ * 
+ * Query params:
+ *   - dry_run=true: Run pipeline but don't send emails
+ *   - profile_id=...: Limit to specific profile (optional)
+ * 
+ * Designed for Cloud Scheduler or manual trigger.
+ */
+app.post('/jobs/daily-brief', async (req, res) => {
+  try {
+    const dryRun = req.query.dry_run === 'true';
+    const profileId = req.query.profile_id as string | undefined;
+    
+    console.log(`[DailyBrief] Starting${dryRun ? ' (dry run)' : ''}...`);
+    
+    const result = await runDailyBrief({
+      dryRun,
+      trigger: 'manual',
+      profileIds: profileId ? [profileId] : undefined,
+    });
+    
+    console.log(`[DailyBrief] Completed: ${result.digests.length} digests, ${result.digests.reduce((s, d) => s + d.emailsSent, 0)} emails sent`);
+    
+    res.json(result);
+  } catch (error) {
+    console.error('[DailyBrief] Error:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * GET /jobs/daily-brief
+ * 
+ * Convenience alias for POST (for browser testing).
+ */
+app.get('/jobs/daily-brief', async (req, res) => {
+  try {
+    const dryRun = req.query.dry_run === 'true';
+    const result = await runDailyBrief({ dryRun, trigger: 'manual' });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * GET /jobs/daily-brief/history
+ * 
+ * Get recent daily brief run history.
+ * Query params:
+ *   - limit: Max runs to return (default 10)
+ */
+app.get('/jobs/daily-brief/history', (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 10;
+    const runs = getRecentRuns(limit);
+    res.json({ runs, count: runs.length });
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 // Startup
 function start() {
   // Initialize database
@@ -574,6 +657,9 @@ function start() {
 ║    POST /subscribers                                     ║
 ║    DELETE /subscribers                                   ║
 ║    GET  /subscribers?profile_id=...                      ║
+║  Daily Brief Pipeline (Phase 6):                         ║
+║    POST /jobs/daily-brief?dry_run=true                   ║
+║    GET  /jobs/daily-brief/history                        ║
 ╚══════════════════════════════════════════════════════════╝
     `);
   });

@@ -204,3 +204,30 @@ CREATE TABLE IF NOT EXISTS email_log (
 
 CREATE INDEX IF NOT EXISTS idx_email_log_digest ON email_log(digest_id);
 CREATE INDEX IF NOT EXISTS idx_email_log_sent ON email_log(sent_at DESC);
+
+-- =================================================================
+-- DAILY_BRIEF_RUNS: Full pipeline execution tracking (Phase 6)
+-- =================================================================
+CREATE TABLE IF NOT EXISTS daily_brief_runs (
+  id TEXT PRIMARY KEY,
+  started_at TEXT NOT NULL,
+  completed_at TEXT,
+  status TEXT NOT NULL CHECK (status IN ('running', 'completed', 'failed')),
+  dry_run INTEGER NOT NULL DEFAULT 0,
+  trigger_type TEXT NOT NULL CHECK (trigger_type IN ('scheduled', 'manual')),
+  
+  -- Pipeline stats
+  channels_checked INTEGER DEFAULT 0,
+  videos_found INTEGER DEFAULT 0,
+  videos_new INTEGER DEFAULT 0,
+  profiles_processed INTEGER DEFAULT 0,
+  videos_scored INTEGER DEFAULT 0,
+  digests_generated INTEGER DEFAULT 0,
+  emails_sent INTEGER DEFAULT 0,
+  
+  -- Full result JSON
+  execution_json TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_daily_brief_runs_started ON daily_brief_runs(started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_daily_brief_runs_trigger ON daily_brief_runs(trigger_type);

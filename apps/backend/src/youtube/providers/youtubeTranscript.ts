@@ -11,7 +11,7 @@ import { YoutubeTranscript } from 'youtube-transcript';
 import type { TranscriptProvider, TranscriptResult } from '../transcriptProvider.js';
 
 export class YouTubeTranscriptProvider implements TranscriptProvider {
-  name = 'youtube-transcript';
+  readonly name = 'youtube-transcript';
 
   async fetchTranscript(videoId: string): Promise<TranscriptResult> {
     try {

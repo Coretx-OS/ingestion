@@ -3,22 +3,17 @@
  *
  * Pluggable transcript fetching for YouTube videos.
  * Default implementation uses 'youtube-transcript' npm package.
+ *
+ * Re-exports types from @secondbrain/core for backward compatibility.
  */
 
-export interface TranscriptResult {
-  fullText: string;
-  language: string;
-  segments?: Array<{
-    text: string;
-    offset: number;
-    duration: number;
-  }>;
-}
+import type {
+  TranscriptResult as CoreTranscriptResult,
+  TranscriptProvider as CoreTranscriptProvider,
+} from '@secondbrain/core';
 
-export interface TranscriptProvider {
-  name: string;
-  fetchTranscript(videoId: string): Promise<TranscriptResult>;
-}
+export type TranscriptResult = CoreTranscriptResult;
+export type TranscriptProvider = CoreTranscriptProvider;
 
 /**
  * Get the configured transcript provider

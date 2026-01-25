@@ -12,15 +12,16 @@
     "dev": "npm run dev:backend & npm run dev:extension",
     "dev:backend": "npm run dev -w @secondbrain/backend",
     "dev:extension": "npm run dev -w @secondbrain/extension",
-    "build": "npm run build -w @secondbrain/contracts && npm run build -w @secondbrain/sdk && npm run build -w @secondbrain/backend && npm run build -w @secondbrain/extension",
+    "build": "npm run build -w @secondbrain/contracts && npm run build -w @secondbrain/core && npm run build -w @secondbrain/sdk && npm run build -w @secondbrain/backend && npm run build -w @secondbrain/extension",
     "build:contracts": "npm run build -w @secondbrain/contracts",
+    "build:core": "npm run build -w @secondbrain/core",
     "build:sdk": "npm run build -w @secondbrain/sdk",
     "build:backend": "npm run build -w @secondbrain/backend",
     "build:extension": "npm run build -w @secondbrain/extension",
     "test": "npm run test -w @secondbrain/backend",
     "test:backend": "npm run test -w @secondbrain/backend",
     "lint": "npm run lint -w @secondbrain/extension",
-    "typecheck": "npm run typecheck -w @secondbrain/contracts && npm run typecheck -w @secondbrain/sdk && npm run typecheck -w @secondbrain/backend && npm run typecheck -w @secondbrain/extension"
+    "typecheck": "npm run typecheck -w @secondbrain/contracts && npm run typecheck -w @secondbrain/core && npm run typecheck -w @secondbrain/sdk && npm run typecheck -w @secondbrain/backend && npm run typecheck -w @secondbrain/extension"
   },
   "author": "Robert Cousins",
   "license": "MIT",

@@ -60,19 +60,31 @@ export async function sendDigestEmail(
       text,
     });
     
+    // Resend SDK v4 returns { data, error } - check for error
+    if (result.error) {
+      throw new Error(result.error.message || 'Resend API error');
+    }
+    
+    if (!result.data?.id) {
+      throw new Error('No message ID returned from Resend');
+    }
+    
     // Store email record
     const db = getDb();
     db.prepare(`
       INSERT INTO email_log (id, digest_id, recipient, status, message_id, sent_at)
       VALUES (?, ?, ?, 'sent', ?, datetime('now'))
-    `).run(randomUUID(), digest.id, config.to, result.data?.id || null);
+    `).run(randomUUID(), digest.id, config.to, result.data.id);
+    
+    console.log(`[Email] Sent to ${config.to}: ${result.data.id}`);
     
     return {
       success: true,
-      messageId: result.data?.id,
+      messageId: result.data.id,
     };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`[Email] Failed to send to ${config.to}: ${errorMsg}`);
     
     // Log failed attempt
     const db = getDb();

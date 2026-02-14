@@ -1,16 +1,17 @@
 # Second Brain OS - Development Guide
 
-Second Brain OS is a trust-first personal knowledge capture system consisting of a Chrome extension and backend API.
+Second Brain OS is a trust-first personal knowledge capture platform consisting of a Chrome extension, backend API, and specialized instances.
 
 **Repository:** https://github.com/robert-cousins/kens-chrome-extension
 
 ## Quick Orientation for Agents
 
-This is a **monorepo** with npm workspaces. Key things to know:
+This is a **monorepo** with npm workspaces using a **Core/Instance architecture**. Key things to know:
 
 1. **Don't change runtime behavior** unless strictly required for the restructure
 2. **Keep tests passing** - especially contract/golden fixtures and behavioral tests
 3. **Extension must communicate end-to-end** with backend + database after any changes
+4. **Core services** (`packages/core/`) are shared by all instances
 
 ### Critical Constraints
 
@@ -23,38 +24,56 @@ This is a **monorepo** with npm workspaces. Key things to know:
 ```
 /
 ├── apps/
-│   ├── extension/        # Chrome extension (React, Vite, Tailwind)
-│   │   ├── src/          # Extension source code
-│   │   │   ├── background/   # Service worker - message routing, Chrome APIs
-│   │   │   ├── content/      # Content script - DOM manipulation
-│   │   │   ├── lib/          # Shared utilities (storage, messaging)
-│   │   │   ├── popup/        # Popup UI (React components)
-│   │   │   └── options/      # Options page (React components)
-│   │   ├── public/icons/ # Extension icons
-│   │   ├── manifest.json # Chrome MV3 manifest
-│   │   └── package.json  # Extension dependencies
-│   ├── backend/          # Node.js backend server
-│   │   ├── src/          # Backend source code
-│   │   │   ├── domain/       # Business logic types
-│   │   │   ├── routes/       # API endpoints (/capture, /fix, /recent)
-│   │   │   ├── llm/          # LLM client and prompts
-│   │   │   └── db/           # SQLite database connection
-│   │   ├── tests/        # Backend tests + golden fixtures
-│   │   │   └── golden/       # Contract validation fixtures
-│   │   ├── data/         # SQLite database (local dev)
-│   │   └── package.json  # Backend dependencies
-│   └── experiments/      # Safe vibe-coding lane (no prod deploy)
-│       └── README.md     # Explains purpose & guardrails
+│   ├── extension/          # Chrome extension (React, Vite, Tailwind)
+│   │   ├── src/            # Extension source code
+│   │   │   ├── background/     # Service worker - message routing, Chrome APIs
+│   │   │   ├── content/        # Content script - DOM manipulation
+│   │   │   ├── lib/            # Shared utilities (storage, messaging)
+│   │   │   ├── popup/          # Popup UI (React components)
+│   │   │   └── options/        # Options page (React components)
+│   │   ├── public/icons/   # Extension icons
+│   │   ├── manifest.json   # Chrome MV3 manifest
+│   │   └── package.json    # Extension dependencies
+│   ├── backend/            # Main backend server
+│   │   ├── src/            # Backend source code
+│   │   │   ├── domain/         # Business logic types
+│   │   │   ├── routes/         # API endpoints (/capture, /fix, /recent)
+│   │   │   ├── llm/            # LLM client and prompts
+│   │   │   └── db/             # SQLite database connection
+│   │   ├── tests/          # Backend tests + golden fixtures
+│   │   │   └── golden/         # Contract validation fixtures
+│   │   ├── data/           # SQLite database (local dev)
+│   │   └── package.json    # Backend dependencies
+│   ├── youtube-briefing/   # YouTube Daily Briefing instance
+│   │   ├── src/            # Briefing-specific code
+│   │   │   ├── adapters/       # Core service adapters
+│   │   │   ├── db/             # SQLite schema + queries
+│   │   │   ├── digest/         # Digest generation logic
+│   │   │   ├── email/          # Email delivery (Resend)
+│   │   │   ├── jobs/           # Capture + digest jobs
+│   │   │   ├── relevance/      # Topic relevance scoring
+│   │   │   └── scheduler/      # Cron job scheduling
+│   │   ├── data/           # SQLite database
+│   │   └── package.json    # Instance dependencies
+│   └── experiments/        # Safe vibe-coding lane (no prod deploy)
+│       └── README.md       # Explains purpose & guardrails
 ├── packages/
-│   ├── contracts/        # Shared OpenAPI spec + TypeScript types
-│   │   ├── src/index.ts  # All shared type definitions
-│   │   └── openapi.yaml  # API contract specification
-│   └── sdk/              # Typed API client for calling backend
-│       └── src/index.ts  # createClient() and typed methods
-├── docs/                 # Architecture & decision documentation
-├── package.json          # Workspace root (npm workspaces)
-├── CLAUDE.md             # This file - development guide
-└── README.md             # Project documentation
+│   ├── contracts/          # Shared OpenAPI spec + TypeScript types
+│   │   ├── src/index.ts    # All shared type definitions
+│   │   └── openapi.yaml    # API contract specification
+│   ├── core/               # Shared infrastructure services
+│   │   └── src/
+│   │       ├── llm/            # LLM client abstraction (OpenAI)
+│   │       ├── embeddings/     # Text embedding service
+│   │       ├── transcript/     # YouTube transcript providers
+│   │       ├── storage/        # Storage adapters
+│   │       └── index.ts        # Package exports
+│   └── sdk/                # Typed API client for calling backend
+│       └── src/index.ts    # createClient() and typed methods
+├── docs/                   # Architecture & decision documentation
+├── package.json            # Workspace root (npm workspaces)
+├── CLAUDE.md               # This file - development guide
+└── README.md               # Project documentation
 ```
 
 ## Commands to Run
@@ -71,9 +90,15 @@ npm run dev
 # Or run them separately
 npm run dev:backend    # Start backend at http://localhost:3000
 npm run dev:extension  # Start extension dev server (Vite HMR)
+npm run dev:briefing   # Start YouTube briefing instance
 
 # Build everything (in dependency order)
 npm run build
+
+# Build individual packages
+npm run build:core       # Build core package
+npm run build:contracts  # Build contracts package
+npm run build:briefing   # Build YouTube briefing instance
 
 # Run tests (backend only currently)
 npm test
@@ -91,12 +116,18 @@ npm run lint
 |----------------|----------|
 | **OpenAPI spec** | `packages/contracts/openapi.yaml` |
 | **Shared TypeScript types** | `packages/contracts/src/index.ts` |
+| **Core services** | `packages/core/src/` |
+| **LLM client** | `packages/core/src/llm/` |
+| **Embeddings service** | `packages/core/src/embeddings/` |
+| **Transcript providers** | `packages/core/src/transcript/` |
 | **Golden test fixtures** | `apps/backend/tests/golden/` |
 | **Backend API routes** | `apps/backend/src/routes/` |
 | **Extension popup screens** | `apps/extension/src/popup/` |
 | **Extension storage types** | `apps/extension/src/lib/storage.ts` |
 | **Extension messaging** | `apps/extension/src/lib/messaging.ts` |
-| **LLM prompts** | `apps/backend/src/prompts/` |
+| **LLM prompts (backend)** | `apps/backend/src/prompts/` |
+| **YouTube briefing jobs** | `apps/youtube-briefing/src/jobs/` |
+| **Digest generation** | `apps/youtube-briefing/src/digest/` |
 
 ## Extension Project Structure (apps/extension)
 

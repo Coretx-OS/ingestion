@@ -2,7 +2,7 @@
 
 Second Brain OS is a trust-first personal knowledge capture platform consisting of a Chrome extension, backend API, and specialized instances.
 
-**Repository:** https://github.com/robert-cousins/kens-chrome-extension
+**Repository:** https://github.com/robert-cousins/ingestion
 
 ## Quick Orientation for Agents
 

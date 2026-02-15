@@ -134,12 +134,28 @@ export interface MessageTypes {
         captured_at: string; // ISO datetime
         raw_text_preview: string; // First 100 chars
         status: 'filed' | 'needs_review' | 'fixed';
-        type: 'person' | 'project' | 'idea' | 'admin';
+        type: 'person' | 'project' | 'idea' | 'admin' | 'youtube'; // Extended to include YouTube
         title: string;
-        confidence: number;
+        confidence: number | null; // NULL for YouTube captures
         record_id: string | null; // CRITICAL: Needed for Fix
       }>;
       next_cursor: string | null; // log_id as string
+    };
+  };
+
+  // Second Brain OS - Capture YouTube video
+  CAPTURE_YOUTUBE: {
+    request: {
+      video_url: string;
+      video_id: string;
+    };
+    response: {
+      status: 'completed' | 'failed';
+      recordId: string | null;
+      error?: {
+        stage: 'transcript' | 'metadata' | 'llm' | 'db';
+        message: string;
+      };
     };
   };
 }

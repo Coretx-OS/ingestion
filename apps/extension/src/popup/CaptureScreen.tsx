@@ -4,9 +4,30 @@ import { getStorage, setStorage } from "@/lib/storage";
 
 interface CaptureScreenProps {
   onCaptured: () => void;
+  onViewLog?: () => void;
 }
 
-export function CaptureScreen({ onCaptured }: CaptureScreenProps) {
+/**
+ * Extract YouTube video ID from URL
+ */
+function extractVideoId(url: string): string | null {
+  try {
+    const urlObj = new URL(url);
+    // youtube.com/watch?v=VIDEO_ID
+    if (urlObj.hostname.includes("youtube.com")) {
+      return urlObj.searchParams.get("v");
+    }
+    // youtu.be/VIDEO_ID
+    if (urlObj.hostname === "youtu.be") {
+      return urlObj.pathname.slice(1);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function CaptureScreen({ onCaptured, onViewLog }: CaptureScreenProps) {
   const [rawText, setRawText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -15,6 +36,11 @@ export function CaptureScreen({ onCaptured }: CaptureScreenProps) {
   const [tabUrl, setTabUrl] = useState<string | null>(null);
   const [tabTitle, setTabTitle] = useState<string | null>(null);
   const [selectedText, setSelectedText] = useState<string | null>(null);
+
+  // YouTube detection
+  const [isYouTubePage, setIsYouTubePage] = useState(false);
+  const [videoInfo, setVideoInfo] = useState<{ url: string; videoId: string } | null>(null);
+  const [youtubeLoading, setYoutubeLoading] = useState(false);
 
   // Capture config checkboxes
   const [includeUrl, setIncludeUrl] = useState(true);
@@ -40,6 +66,15 @@ export function CaptureScreen({ onCaptured }: CaptureScreenProps) {
         setTabUrl(currentTab.url || null);
         setTabTitle(currentTab.title || null);
 
+        // Check if on YouTube video page
+        if (currentTab.url) {
+          const videoId = extractVideoId(currentTab.url);
+          if (videoId) {
+            setIsYouTubePage(true);
+            setVideoInfo({ url: currentTab.url, videoId });
+          }
+        }
+
         // Try to get selected text from content script
         if (currentTab.id) {
           try {
@@ -62,6 +97,39 @@ export function CaptureScreen({ onCaptured }: CaptureScreenProps) {
 
     loadContext();
   }, []);
+
+  // Handle YouTube capture
+  const handleYouTubeCapture = async () => {
+    if (!videoInfo) return;
+
+    setYoutubeLoading(true);
+    setError(null);
+
+    try {
+      const response = await sendToBackground("CAPTURE_YOUTUBE", {
+        video_url: videoInfo.url,
+        video_id: videoInfo.videoId,
+      });
+
+      if (!response.success || !response.data) {
+        throw new Error(response.error || "Failed to capture YouTube video");
+      }
+
+      if (response.data.status === "completed") {
+        // Navigate to log to see result (via /recent)
+        if (onViewLog) {
+          onViewLog();
+        }
+      } else {
+        // Handle failure
+        setError(response.data.error?.message || "YouTube capture failed");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setYoutubeLoading(false);
+    }
+  };
 
   const handleCapture = async () => {
     if (!rawText.trim()) {
@@ -123,14 +191,36 @@ export function CaptureScreen({ onCaptured }: CaptureScreenProps) {
     <div className="flex flex-col h-full p-4">
       <h1 className="text-xl font-bold mb-4">Capture a Thought</h1>
 
+      {/* YouTube Capture Button - shown when on YouTube video page */}
+      {isYouTubePage && videoInfo && (
+        <button
+          onClick={handleYouTubeCapture}
+          disabled={youtubeLoading || loading}
+          className="w-full py-3 mb-4 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          {youtubeLoading ? (
+            <>
+              <span className="animate-pulse">Processing video...</span>
+            </>
+          ) : (
+            <>
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+              </svg>
+              Capture YouTube Summary
+            </>
+          )}
+        </button>
+      )}
+
       {/* Thought input */}
       <textarea
         value={rawText}
         onChange={(e) => setRawText(e.target.value)}
         placeholder={placeholder}
         className="w-full h-32 p-2 border border-gray-300 rounded-md mb-4 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-        disabled={loading}
-        autoFocus
+        disabled={loading || youtubeLoading}
+        autoFocus={!isYouTubePage}
       />
 
       {/* Context checkboxes */}

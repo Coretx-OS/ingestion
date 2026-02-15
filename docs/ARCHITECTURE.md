@@ -2,23 +2,59 @@
 
 Second Brain OS is intentionally **simple**, layered, and conservative.
 
-## High-level flow
+## Core/Instance Architecture
 
+The system is organized into two layers:
+
+### Core Package (`packages/core/`)
+Shared infrastructure services used by all instances:
+- **LLM Client** (`llm/`): OpenAI chat completions abstraction
+- **Embeddings Service** (`embeddings/`): Text-embedding-3-small for semantic similarity
+- **Transcript Providers** (`transcript/`): YouTube transcript fetching with fallbacks
+- **Storage Adapters** (`storage/`): Database abstraction layer
+
+### Instances (`apps/`)
+Domain-specific applications built on core services:
+- **Backend** (`apps/backend/`): Main API server for Chrome extension
+- **YouTube Briefing** (`apps/youtube-briefing/`): Automated video monitoring and digests
+- **Extension** (`apps/extension/`): Chrome extension UI
+
+---
+
+## High-level Flow: Chrome Extension
+
+```
 User
-↓
+  ↓
 Chrome Extension (capture UI)
-↓
+  ↓
 Backend API
 ├─ Validate input
-├─ Call LLM (classifier / fixer)
+├─ Call LLM (classifier / fixer) via @secondbrain/core
 ├─ Enforce invariants
 ├─ Persist canonical record
 └─ Log audit trail
-↓
+  ↓
 SQLite (source of truth)
+```
 
-yaml
-Copy code
+## High-level Flow: YouTube Briefing Instance
+
+```
+Scheduler (node-cron)
+  ↓
+Capture Job
+├─ Fetch new videos from tracked channels
+├─ Get transcripts via @secondbrain/core
+├─ Generate summaries via @secondbrain/core LLM
+├─ Calculate relevance scores via @secondbrain/core embeddings
+└─ Store in SQLite
+  ↓
+Digest Job
+├─ Query high-relevance videos from last 24h
+├─ Generate strategic briefing via LLM
+└─ Send email via Resend API
+```
 
 ---
 
@@ -30,7 +66,7 @@ Copy code
 
 ### 2. Trust > automation
 - Low confidence = `needs_review`
-- No background “fixing” without user intent
+- No background "fixing" without user intent
 
 ### 3. Explicit contracts
 - JSON schemas
@@ -40,6 +76,8 @@ Copy code
 ### 4. Separation of concerns
 - Extension: capture + display only
 - Backend: logic, validation, trust enforcement
+- Core: shared services (LLM, embeddings, transcripts)
+- Instances: domain-specific logic
 - LLM: *suggestion engine*, never final authority
 
 ---
@@ -68,4 +106,3 @@ This is enforced explicitly after validation.
 - `needs_review` → otherwise
 
 No exceptions.
-

@@ -22,6 +22,10 @@ export const config = {
 
   // CORS (locked down - no wildcard)
   allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',').map((o) => o.trim()) || ['http://localhost:3000'],
+
+  // YouTube feature
+  youtubeApiKey: process.env.YOUTUBE_API_KEY || '',
+  transcriptProvider: process.env.TRANSCRIPT_PROVIDER || 'youtube-transcript',
 } as const;
 
 /**
@@ -47,4 +51,11 @@ export function validateConfig(): void {
   console.log(`   Model: ${config.llmModel}`);
   console.log(`   Database: ${config.databasePath}`);
   console.log(`   CORS Origins: ${config.allowedOrigins.join(', ')}`);
+
+  // YouTube feature - optional but warn if not configured
+  if (!config.youtubeApiKey) {
+    console.log('⚠️  YOUTUBE_API_KEY not set - YouTube capture will fail at metadata stage');
+  } else {
+    console.log(`   YouTube: API key configured, provider: ${config.transcriptProvider}`);
+  }
 }

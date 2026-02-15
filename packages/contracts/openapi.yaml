@@ -107,6 +107,24 @@ application/json:
 schema:
 $ref: "#/components/schemas/ReviewPreviewResponse"
 
+/youtube/capture:
+post:
+operationId: captureYouTube
+summary: Capture a YouTube video, generate transcript summary, and store
+requestBody:
+required: true
+content:
+application/json:
+schema:
+$ref: "#/components/schemas/YouTubeCaptureRequest"
+responses:
+"200":
+description: Capture result (completed or failed)
+content:
+application/json:
+schema:
+$ref: "#/components/schemas/YouTubeCaptureResponse"
+
 components:
 schemas:
 ClientMeta:
@@ -490,3 +508,37 @@ ReviewPreviewResponse:
   properties:
     status: { type: string, enum: [ok] }
     review: { $ref: "#/components/schemas/Review" }
+
+YouTubeCaptureRequest:
+  type: object
+  additionalProperties: false
+  required: [client, youtube]
+  properties:
+    client: { $ref: "#/components/schemas/ClientMeta" }
+    youtube:
+      type: object
+      additionalProperties: false
+      required: [video_url, video_id, captured_at]
+      properties:
+        video_url: { type: string }
+        video_id: { type: string }
+        captured_at: { type: string, format: date-time }
+
+YouTubeCaptureResponse:
+  type: object
+  additionalProperties: false
+  required: [status, recordId]
+  properties:
+    status:
+      type: string
+      enum: [completed, failed]
+    recordId: { type: ["string", "null"] }
+    error:
+      type: object
+      additionalProperties: false
+      required: [stage, message]
+      properties:
+        stage:
+          type: string
+          enum: [transcript, metadata, llm, db]
+        message: { type: string }

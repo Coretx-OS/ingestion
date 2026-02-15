@@ -108,3 +108,37 @@ BEGIN
   SET log_id = (SELECT COALESCE(MAX(log_id), 0) + 1 FROM inbox_log WHERE rowid != NEW.rowid)
   WHERE rowid = NEW.rowid;
 END;
+
+
+-- =================================================================
+-- YOUTUBE_CAPTURES TABLE: YouTube video summaries
+-- No confidence field - captures are either completed or failed
+-- =================================================================
+CREATE TABLE IF NOT EXISTS youtube_captures (
+  id TEXT PRIMARY KEY,
+  video_id TEXT NOT NULL UNIQUE,
+  video_url TEXT NOT NULL,
+
+  -- Metadata from YouTube API
+  title TEXT,
+  channel TEXT,
+  published_at TEXT,
+  duration_seconds INTEGER,
+
+  -- Content
+  transcript_text TEXT,
+  transcript_provider TEXT,
+  summary TEXT,
+
+  -- Execution tracking (JSON string)
+  execution_json TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('completed', 'failed')),
+
+  -- Client info
+  client_device_id TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_youtube_captures_created_at ON youtube_captures(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_youtube_captures_video_id ON youtube_captures(video_id);
+CREATE INDEX IF NOT EXISTS idx_youtube_captures_status ON youtube_captures(status);

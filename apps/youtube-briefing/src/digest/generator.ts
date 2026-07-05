@@ -13,6 +13,7 @@ import { getTopVideos, type ScoredVideo } from '../relevance/engine.js';
 export interface DigestBullet {
   videoId: string;
   videoTitle: string;
+  channelName: string;
   bullet: string;
   whyItMatters: string;
   timestampUrl: string;
@@ -198,6 +199,7 @@ export async function generateDigest(
     return {
       videoId: b.videoId,
       videoTitle: video?.title || '',
+      channelName: video?.channelName || 'Unknown',
       bullet: b.bullet,
       whyItMatters: b.whyItMatters,
       timestampUrl: getTimestampUrl(b.videoId, b.timestampSeconds),
@@ -230,7 +232,16 @@ export async function generateDigest(
     digest.minutesSaved,
     digest.videoCount
   );
-  
+
+  // Mark included videos as digested so they don't appear in future runs
+  if (bullets.length > 0) {
+    const placeholders = bullets.map(() => '?').join(',');
+    const digestedVideoIds = bullets.map(b => b.videoId);
+    db.prepare(`
+      UPDATE videos SET status = 'processed', processed_at = datetime('now') WHERE video_id IN (${placeholders})
+    `).run(...digestedVideoIds);
+  }
+
   return digest;
 }
 
@@ -247,6 +258,7 @@ export function formatDigestText(digest: Digest): string {
   for (let i = 0; i < digest.bullets.length; i++) {
     const bullet = digest.bullets[i];
     lines.push(`${i + 1}. ${bullet.bullet}`);
+    lines.push(`   📺 ${bullet.channelName}`);
     lines.push(`   → ${bullet.whyItMatters}`);
     lines.push(`   🔗 ${bullet.timestampUrl}`);
     lines.push(`   #${bullet.tags.join(' #')}`);
@@ -268,6 +280,9 @@ export function formatDigestHtml(digest: Digest): string {
     <div style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 8px;">
       <p style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600;">
         ${i + 1}. ${escapeHtml(bullet.bullet)}
+      </p>
+      <p style="margin: 0 0 8px 0; color: #888; font-size: 13px;">
+        📺 ${escapeHtml(bullet.channelName)}
       </p>
       <p style="margin: 0 0 8px 0; color: #666; font-size: 14px;">
         → ${escapeHtml(bullet.whyItMatters)}

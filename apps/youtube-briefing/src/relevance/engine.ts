@@ -311,11 +311,13 @@ export function getTopVideos(profileId: string, limit: number = 10): ScoredVideo
   const db = getDb();
   
   const rows = db.prepare(`
-    SELECT vs.video_id, v.title, vs.relevance_score, vs.novelty_score, 
+    SELECT vs.video_id, v.title, vs.relevance_score, vs.novelty_score,
            vs.combined_score, vs.score_reasoning
     FROM video_scores vs
     JOIN videos v ON v.video_id = vs.video_id
     WHERE vs.profile_id = ?
+      AND v.status = 'new'
+      AND v.published_at >= datetime('now', '-24 hours')
     ORDER BY vs.combined_score DESC
     LIMIT ?
   `).all(profileId, limit) as Array<{

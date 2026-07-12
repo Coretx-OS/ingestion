@@ -45,7 +45,7 @@ export async function sendDigestEmail(
   const resend = getResend();
   
   const from = config.from || process.env.EMAIL_FROM || 'briefing@secondbrain.local';
-  const subject = `📺 Daily YouTube Briefing - ${digest.bullets.length} insights, ${digest.minutesSaved} min saved`;
+  const subject = `📺 Daily YouTube Briefing - ${digest.videoCount} videos, ${digest.minutesSaved} min saved`;
   
   const html = formatDigestHtml(digest);
   const text = formatDigestText(digest);

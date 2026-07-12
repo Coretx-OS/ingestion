@@ -33,16 +33,19 @@ function makeDigest(): GroundedDigest {
     id: 'digest1',
     profileId: 'profile1',
     generatedAt: new Date().toISOString(),
-    bullets: [
+    videos: [
       {
         videoId: 'vid1',
         videoTitle: 'Title',
         channelName: 'Channel',
-        bullet: 'insight',
-        whyItMatters: 'why',
-        timestampUrl: 'https://youtube.com/watch?v=vid1&t=5',
-        tags: ['a'],
-        evidence: { evidenceId: 'vid1:vid1#0:vid1#1', startSeconds: 5, endSeconds: 8, excerpt: 'text', sourceSegmentIds: ['vid1#0', 'vid1#1'] },
+        precis: 'overview',
+        points: [
+          {
+            text: 'insight',
+            timestampUrl: 'https://youtube.com/watch?v=vid1&t=5',
+            evidence: { evidenceId: 'vid1:vid1#0:vid1#1', startSeconds: 5, endSeconds: 8, excerpt: 'text', sourceSegmentIds: ['vid1#0', 'vid1#1'] },
+          },
+        ],
       },
     ],
     minutesSaved: 3,
@@ -55,7 +58,7 @@ describe('persistDigest', () => {
   it('atomically stores a validated non-empty digest with complete evidence provenance', () => {
     persistDigest(makeDigest());
     const [stored] = getRecentDigests('profile1', 10);
-    expect(stored.bullets[0].evidence).toEqual({
+    expect(stored.videos[0].points[0].evidence).toEqual({
       evidenceId: 'vid1:vid1#0:vid1#1',
       startSeconds: 5,
       endSeconds: 8,

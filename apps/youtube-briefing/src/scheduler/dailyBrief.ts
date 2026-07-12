@@ -209,7 +209,7 @@ export async function runProfileDigest(
   const buildResult = await buildDigest(llm, profile, videoInputs);
 
   if (dryRun) {
-    const bulletCount = buildResult.status === 'ready' ? buildResult.digest.bullets.length : 0;
+    const bulletCount = buildResult.status === 'ready' ? buildResult.digest.videoCount : 0;
     const minutesSaved = buildResult.status === 'ready' ? buildResult.digest.minutesSaved : 0;
     return {
       ...base,
@@ -243,7 +243,7 @@ export async function runProfileDigest(
     return {
       ...base,
       outcome: 'no_subscribers',
-      bulletCount: buildResult.digest.bullets.length,
+      bulletCount: buildResult.digest.videoCount,
       minutesSaved: buildResult.digest.minutesSaved,
       emailsSent: 0,
       emailsFailed: 0,
@@ -258,7 +258,7 @@ export async function runProfileDigest(
     return {
       ...base,
       outcome: 'delivery_failed',
-      bulletCount: buildResult.digest.bullets.length,
+      bulletCount: buildResult.digest.videoCount,
       minutesSaved: buildResult.digest.minutesSaved,
       emailsSent: sendResult.sent,
       emailsFailed: sendResult.failed,
@@ -271,7 +271,7 @@ export async function runProfileDigest(
   return {
     ...base,
     outcome: 'delivered',
-    bulletCount: buildResult.digest.bullets.length,
+    bulletCount: buildResult.digest.videoCount,
     minutesSaved: buildResult.digest.minutesSaved,
     emailsSent: sendResult.sent,
     emailsFailed: sendResult.failed,

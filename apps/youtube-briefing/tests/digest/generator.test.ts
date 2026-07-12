@@ -270,6 +270,50 @@ describe('buildDigest - overflow mode', () => {
     expect(result.status).not.toBe('empty');
   });
 
+  it('still builds a ready digest from a video\'s cleanly-resolved chunks when a DIFFERENT chunk of the same video is malformed', async () => {
+    // 1500 segments chunk into a handful of overflow calls (within the
+    // default per-profile budget). One chunk returns a malformed/forged
+    // reference (e.g. a real GPT formatting slip - a bare segment number
+    // instead of the required videoId#index shape); another chunk on the
+    // SAME video returns perfectly valid, resolvable evidence. The
+    // malformed chunk must not taint the other, independently-validated
+    // chunk's evidence for the same video - each chunk is validated only
+    // against the segments it was actually shown.
+    const video = makeVideo('vidBig', 1500, 20);
+    let callCount = 0;
+
+    const llm = makeLLM((opts) => {
+      if (opts.role === 'evidence-extractor') {
+        callCount++;
+        if (callCount === 1) {
+          // Malformed: a bare numeric ID, not "vidBig#<n>".
+          return {
+            raw: JSON.stringify({
+              evidence: [{ startSegmentId: '5', endSegmentId: '6', insight: 'bad shape', tags: [] }],
+            }),
+          };
+        }
+        const input = JSON.parse(opts.input) as { transcriptChunk: string };
+        const match = input.transcriptChunk.match(/vidBig#\d+/);
+        const segId = match ? match[0] : 'vidBig#0';
+        return {
+          raw: JSON.stringify({ evidence: [{ startSegmentId: segId, endSegmentId: segId, insight: 'good insight', tags: ['t'] }] }),
+        };
+      }
+      const input = JSON.parse(opts.input) as { evidence: Array<{ id: string; videoId: string }> };
+      const validId = input.evidence[0]?.id;
+      return {
+        raw: JSON.stringify({ bullets: [{ videoId: 'vidBig', evidenceId: validId, bullet: 'good', whyItMatters: 'y', tags: [] }] }),
+      };
+    });
+
+    const result = await buildDigest(llm, makeProfile(), [video]);
+    expect(result.status).toBe('ready');
+    if (result.status === 'ready') {
+      expect(result.digest.bullets[0].bullet).toBe('good');
+    }
+  });
+
   it('accepts a valid evidenceId selected from the supplied pool', async () => {
     // 1500 segments: large enough to exceed the direct-mode content
     // budget (forcing overflow mode) but still chunks to fewer than the

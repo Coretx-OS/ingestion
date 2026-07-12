@@ -1,143 +1,167 @@
 /**
  * Final Digest Response Validation
  *
- * The discriminator that matters is whether a bullet's *reference*
- * resolves to real provenance, not whether every cosmetic field is
- * perfectly shaped:
+ * The model returns one entry per video: an ungrounded "precis" (a plain
+ * paraphrase - never validated against a specific span, same as the old
+ * whyItMatters field) plus a "points" array, where each point must carry
+ * a resolvable reference (a bounded segment range in direct mode, or a
+ * supplied evidenceId in overflow mode). Failures are tracked at two
+ * granularities, matching the same principle applied earlier to overflow
+ * chunk extraction: a per-point problem must not silently discard an
+ * entire video's other, independently valid points, and a per-video
+ * problem must not silently discard the whole response.
  *
- * - Hard rejection (caller must treat the whole digest as `invalid`,
- *   blocking the global status commit): an unknown videoId, a
- *   wrong-mode-shaped reference (missing segment IDs in direct mode,
- *   missing evidenceId in overflow mode), or - resolved later by the
- *   caller against known segments/evidence - a forged/unresolvable
- *   evidence reference. These are the actual laundering vectors: a
- *   model/schema failure here must not quietly authorize processing
- *   videos the affected profile never validly received.
- * - Soft, non-rejecting: a duplicate bullet for an already-seen video
- *   (keep the first), or over-length bullet/whyItMatters/tags (clamp
- *   rather than drop - a single 290-character bullet must not block an
- *   entire run's commit across every profile).
- * - Not a rejection at all: the model simply omitting a video (no bullet
- *   object present at all for it) - that video just doesn't get a bullet
- *   this run. This is distinct from a bullet object that IS present with a
- *   resolvable reference but missing/non-string bullet text - the model
- *   tried to comment on that video and produced something malformed,
- *   which is a hard rejection (see below), not a true omission.
+ * - Video-level hard rejection (caller must treat the whole digest as
+ *   `invalid`, blocking the global status commit): a non-object entry,
+ *   an unknown videoId, or a missing/non-array `points` container. These
+ *   are the actual laundering vectors - a model/schema failure here must
+ *   not quietly authorize processing videos the profile never validly
+ *   received.
+ * - Point-level soft rejection (drop just this point, keep the video's
+ *   other valid points; tracked via `hadMalformedPoint` so the caller
+ *   never reports the run as silently 'empty' if nothing survives
+ *   anywhere): a wrong-mode-shaped reference, or missing/non-string
+ *   point text.
+ * - A video whose `points` array is well-formed but empty (`[]`), or
+ *   whose every point was dropped, is excluded here - callers must never
+ *   construct a video summary with zero grounded points; an ungrounded
+ *   precis alone would violate the whole system's grounding guarantee.
+ * - Soft, non-rejecting: a duplicate entry for an already-seen video
+ *   (keep the first), over-length precis/point text (clamp rather than
+ *   drop), or more points than the per-video cap (truncate rather than
+ *   drop the video).
  */
 
 export type DigestMode = 'direct' | 'overflow';
 
-export interface ValidatedBulletRef {
-  videoId: string;
-  bullet: string;
-  whyItMatters: string;
-  tags: string[];
+export interface ValidatedPointRef {
+  text: string;
   segmentRef?: { startSegmentId: string; endSegmentId: string };
   evidenceId?: string;
 }
 
-export interface ValidateBulletsOutcome {
-  refs: ValidatedBulletRef[];
-  /** True if any bullet had an unknown video or a wrong-mode reference shape - the caller must escalate to 'invalid'. */
-  hadUnresolvableReference: boolean;
+export interface ValidatedVideoSummaryRef {
+  videoId: string;
+  precis: string;
+  points: ValidatedPointRef[];
 }
 
-const MAX_BULLET_CHARS = 280;
-const MAX_WHY_CHARS = 400;
-const MAX_TAGS = 5;
-const MAX_TAG_CHARS = 40;
+export interface ValidateVideoSummariesOutcome {
+  refs: ValidatedVideoSummaryRef[];
+  /** True if any top-level entry was malformed or referenced an unknown video - the caller must escalate to 'invalid'. */
+  hadUnresolvableReference: boolean;
+  /** True if any individual point (within an otherwise-valid video) had a wrong-mode shape or missing text and was dropped - not a hard rejection, but the caller must not report the run as silently 'empty' if this is why nothing survived. */
+  hadMalformedPoint: boolean;
+}
 
-/** Clamps (never rejects) bullet/whyItMatters text; returns null only when there is no usable text at all. */
+const MAX_POINT_CHARS = 800;
+const MAX_PRECIS_CHARS = 600;
+const MAX_POINTS_PER_VIDEO = 8;
+
+/**
+ * Clamps (never rejects) precis/point text; returns null only when there
+ * is no usable text at all. A truncation that would otherwise land
+ * mid-word backs up to the last whitespace and appends an ellipsis - the
+ * limit is a defensive ceiling against a runaway response, not something
+ * expected to bite often, so it should never read as a garbled cutoff.
+ */
 function clampText(value: unknown, maxLength: number): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   if (trimmed.length === 0) return null;
-  return trimmed.length > maxLength ? trimmed.slice(0, maxLength) : trimmed;
-}
+  if (trimmed.length <= maxLength) return trimmed;
 
-function clampTags(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
-    .map((t) => (t.length > MAX_TAG_CHARS ? t.slice(0, MAX_TAG_CHARS) : t))
-    .slice(0, MAX_TAGS);
+  const cut = trimmed.slice(0, maxLength);
+  const lastSpace = cut.lastIndexOf(' ');
+  const backedOff = lastSpace > 0 ? cut.slice(0, lastSpace) : cut;
+  return `${backedOff.trimEnd()}…`;
 }
 
 /**
- * Validates the model's raw bullets array (already confirmed by the
- * caller to be a real array from a parsed JSON object). Duplicate videos
- * and soft field violations are handled leniently; unknown videos and
- * wrong-mode reference shapes set `hadUnresolvableReference`.
+ * Validates the model's raw video-summary array (already confirmed by
+ * the caller to be a real array from a parsed JSON object).
  */
-export function validateRawBullets(
-  rawBullets: unknown[],
+export function validateRawVideoSummaries(
+  rawVideos: unknown[],
   mode: DigestMode,
   knownVideoIds: ReadonlySet<string>
-): ValidateBulletsOutcome {
+): ValidateVideoSummariesOutcome {
   const seenVideoIds = new Set<string>();
-  const refs: ValidatedBulletRef[] = [];
+  const refs: ValidatedVideoSummaryRef[] = [];
   let hadUnresolvableReference = false;
+  let hadMalformedPoint = false;
 
-  for (const item of rawBullets) {
+  for (const item of rawVideos) {
     if (typeof item !== 'object' || item === null) {
       hadUnresolvableReference = true;
       continue;
     }
-    const b = item as Record<string, unknown>;
+    const v = item as Record<string, unknown>;
 
-    if (typeof b.videoId !== 'string') {
+    if (typeof v.videoId !== 'string') {
       hadUnresolvableReference = true;
       continue;
     }
-    if (!knownVideoIds.has(b.videoId)) {
+    if (!knownVideoIds.has(v.videoId)) {
       hadUnresolvableReference = true; // unknown video - a hallucinated/forged reference
       continue;
     }
-    if (seenVideoIds.has(b.videoId)) {
-      continue; // duplicate for an already-accepted video - benign, keep the first
+    if (seenVideoIds.has(v.videoId)) {
+      continue; // duplicate entry for an already-accepted video - benign, keep the first
     }
 
-    if (mode === 'direct') {
-      if (typeof b.startSegmentId !== 'string' || typeof b.endSegmentId !== 'string') {
-        hadUnresolvableReference = true; // wrong shape for this mode
-        continue;
-      }
-    } else {
-      if (typeof b.evidenceId !== 'string') {
-        hadUnresolvableReference = true;
-        continue;
-      }
-    }
-
-    const bullet = clampText(b.bullet, MAX_BULLET_CHARS);
-    if (bullet === null) {
-      // The reference itself resolved (known video, correct-mode shape),
-      // but the model sent no usable bullet text. This is NOT the "model
-      // omitted this video" case (that never produces a bullet object at
-      // all) - it's a malformed response for a video the model DID try to
-      // address, so it must escalate to invalid rather than silently
-      // vanish as if nothing was ever said about this video.
-      hadUnresolvableReference = true;
+    const rawPoints = Array.isArray(v.points) ? v.points : null;
+    if (rawPoints === null) {
+      // The model attempted this video (it's a known video with an entry)
+      // but sent no usable points container at all - malformed, not a
+      // true omission (a true omission never produces an entry).
+      hadMalformedPoint = true;
       continue;
     }
-    const whyItMatters = clampText(b.whyItMatters, MAX_WHY_CHARS) ?? '';
-    const tags = clampTags(b.tags);
 
-    seenVideoIds.add(b.videoId);
-    if (mode === 'direct') {
-      refs.push({
-        videoId: b.videoId,
-        bullet,
-        whyItMatters,
-        tags,
-        segmentRef: { startSegmentId: b.startSegmentId as string, endSegmentId: b.endSegmentId as string },
-      });
-    } else {
-      refs.push({ videoId: b.videoId, bullet, whyItMatters, tags, evidenceId: b.evidenceId as string });
+    const points: ValidatedPointRef[] = [];
+    for (const rawPoint of rawPoints.slice(0, MAX_POINTS_PER_VIDEO)) {
+      if (typeof rawPoint !== 'object' || rawPoint === null) {
+        hadMalformedPoint = true;
+        continue;
+      }
+      const p = rawPoint as Record<string, unknown>;
+
+      if (mode === 'direct') {
+        if (typeof p.startSegmentId !== 'string' || typeof p.endSegmentId !== 'string') {
+          hadMalformedPoint = true;
+          continue;
+        }
+      } else if (typeof p.evidenceId !== 'string') {
+        hadMalformedPoint = true;
+        continue;
+      }
+
+      const text = clampText(p.text, MAX_POINT_CHARS);
+      if (text === null) {
+        hadMalformedPoint = true;
+        continue;
+      }
+
+      points.push(
+        mode === 'direct'
+          ? { text, segmentRef: { startSegmentId: p.startSegmentId as string, endSegmentId: p.endSegmentId as string } }
+          : { text, evidenceId: p.evidenceId as string }
+      );
     }
+
+    // A well-formed-but-empty points array, or one where every point
+    // failed validation, both end up here with zero points - either way
+    // this video summary must not be emitted (see module doc comment).
+    if (points.length === 0) continue;
+
+    const precis = clampText(v.precis, MAX_PRECIS_CHARS) ?? '';
+
+    seenVideoIds.add(v.videoId);
+    refs.push({ videoId: v.videoId, precis, points });
   }
 
-  return { refs, hadUnresolvableReference };
+  return { refs, hadUnresolvableReference, hadMalformedPoint };
 }
 
 /** Best-effort JSON parse tolerant of markdown code fences; returns null on failure rather than throwing. */

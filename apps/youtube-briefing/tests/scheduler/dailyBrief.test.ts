@@ -135,7 +135,7 @@ describe('runDailyBrief', () => {
     seedVideoWithScore('vid1', 'p1', 0.9);
     __setProviderForTests(makeFakeProvider(async () => shortTranscript('hello world')));
     llmHandler = () => ({
-      raw: JSON.stringify({ bullets: [{ videoId: 'vid1', startSegmentId: 'vid1#0', endSegmentId: 'vid1#0', bullet: 'x', whyItMatters: 'y', tags: [] }] }),
+      raw: JSON.stringify({ videos: [{ videoId: 'vid1', precis: 'p', points: [{ startSegmentId: 'vid1#0', endSegmentId: 'vid1#0', text: 'x' }] }] }),
     });
 
     await runDailyBrief({ trigger: 'manual' });
@@ -153,7 +153,7 @@ describe('runDailyBrief', () => {
     seedVideoWithScore('vidShared', 'p2', 0.9);
     __setProviderForTests(makeFakeProvider(async () => shortTranscript('shared content')));
     llmHandler = () => ({
-      raw: JSON.stringify({ bullets: [{ videoId: 'vidShared', startSegmentId: 'vidShared#0', endSegmentId: 'vidShared#0', bullet: 'x', whyItMatters: 'y', tags: [] }] }),
+      raw: JSON.stringify({ videos: [{ videoId: 'vidShared', precis: 'p', points: [{ startSegmentId: 'vidShared#0', endSegmentId: 'vidShared#0', text: 'x' }] }] }),
     });
 
     const result = await runDailyBrief({ trigger: 'manual' });
@@ -174,7 +174,7 @@ describe('runDailyBrief', () => {
     llmHandler = (opts) => {
       const input = JSON.parse(opts.input) as { videos: Array<{ videoId: string }> };
       const v = input.videos[0];
-      return { raw: JSON.stringify({ bullets: [{ videoId: v.videoId, startSegmentId: `${v.videoId}#0`, endSegmentId: `${v.videoId}#0`, bullet: 'x', whyItMatters: 'y', tags: [] }] }) };
+      return { raw: JSON.stringify({ videos: [{ videoId: v.videoId, precis: 'p', points: [{ startSegmentId: `${v.videoId}#0`, endSegmentId: `${v.videoId}#0`, text: 'x' }] }] }) };
     };
 
     // Force pFail's profile pipeline itself to fail after transcript
@@ -218,7 +218,7 @@ describe('runDailyBrief', () => {
       const v = input.videos[0];
       return {
         raw: JSON.stringify({
-          bullets: [{ videoId: v.videoId, startSegmentId: `${v.videoId}#0`, endSegmentId: `${v.videoId}#0`, bullet: 'x', whyItMatters: 'y', tags: [] }],
+          videos: [{ videoId: v.videoId, precis: 'p', points: [{ startSegmentId: `${v.videoId}#0`, endSegmentId: `${v.videoId}#0`, text: 'x' }] }],
         }),
       };
     };
@@ -242,7 +242,7 @@ describe('runDailyBrief', () => {
     seedVideoWithScore('vid1', 'p1', 0.9);
     __setProviderForTests(makeFakeProvider(async () => shortTranscript('hello world')));
     llmHandler = () => ({
-      raw: JSON.stringify({ bullets: [{ videoId: 'vid1', startSegmentId: 'vid1#0', endSegmentId: 'vid1#0', bullet: 'x', whyItMatters: 'y', tags: [] }] }),
+      raw: JSON.stringify({ videos: [{ videoId: 'vid1', precis: 'p', points: [{ startSegmentId: 'vid1#0', endSegmentId: 'vid1#0', text: 'x' }] }] }),
     });
 
     const db = getDb();
@@ -278,9 +278,9 @@ describe('runDailyBrief', () => {
     __setProviderForTests(makeFakeProvider(async () => shortTranscript('content')));
     llmHandler = (opts) => {
       const input = JSON.parse(opts.input) as { videos: Array<{ videoId: string }> };
-      if (input.videos.length === 0) return { raw: JSON.stringify({ bullets: [] }) };
+      if (input.videos.length === 0) return { raw: JSON.stringify({ videos: [] }) };
       const v = input.videos[0];
-      return { raw: JSON.stringify({ bullets: [{ videoId: v.videoId, startSegmentId: `${v.videoId}#0`, endSegmentId: `${v.videoId}#0`, bullet: 'x', whyItMatters: 'y', tags: [] }] }) };
+      return { raw: JSON.stringify({ videos: [{ videoId: v.videoId, precis: 'p', points: [{ startSegmentId: `${v.videoId}#0`, endSegmentId: `${v.videoId}#0`, text: 'x' }] }] }) };
     };
 
     const result = await runDailyBrief({ trigger: 'manual' });
@@ -297,7 +297,7 @@ describe('runDailyBrief', () => {
 
   it('counts digestsGenerated only for persisted non-empty digests and sends no email when there are none', async () => {
     seedProfile('pEmpty');
-    llmHandler = () => ({ raw: JSON.stringify({ bullets: [] }) });
+    llmHandler = () => ({ raw: JSON.stringify({ videos: [] }) });
 
     const result = await runDailyBrief({ trigger: 'manual' });
 

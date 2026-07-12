@@ -36,18 +36,15 @@ describe('buildDigest - direct mode', () => {
     expect(llm.call).not.toHaveBeenCalled();
   });
 
-  it('builds a grounded bullet from a valid segment range, deriving the URL from Math.floor(startSeconds)', async () => {
+  it('builds a grounded video summary from a valid segment range, deriving the URL from Math.floor(startSeconds)', async () => {
     const video = makeVideo('vid1', 10);
     const llm = makeLLM(() => ({
       raw: JSON.stringify({
-        bullets: [
+        videos: [
           {
             videoId: 'vid1',
-            startSegmentId: 'vid1#2',
-            endSegmentId: 'vid1#3',
-            bullet: 'Key insight',
-            whyItMatters: 'Matters because X',
-            tags: ['ai', 'strategy'],
+            precis: 'Overview of vid1',
+            points: [{ startSegmentId: 'vid1#2', endSegmentId: 'vid1#3', text: 'Key insight' }],
           },
         ],
       }),
@@ -57,10 +54,10 @@ describe('buildDigest - direct mode', () => {
     expect(result.status).toBe('ready');
     if (result.status !== 'ready') return;
 
-    const bullet = result.digest.bullets[0];
+    const point = result.digest.videos[0].points[0];
     // segment#2 starts at t=6 (i*3)
-    expect(bullet.timestampUrl).toBe('https://youtube.com/watch?v=vid1&t=6');
-    expect(bullet.evidence.startSeconds).toBe(6);
+    expect(point.timestampUrl).toBe('https://youtube.com/watch?v=vid1&t=6');
+    expect(point.evidence.startSeconds).toBe(6);
     expect(result.selectedVideoIds).toEqual(['vid1']);
   });
 
@@ -68,16 +65,13 @@ describe('buildDigest - direct mode', () => {
     const video = makeVideo('vid1', 5);
     const llm = makeLLM(() => ({
       raw: JSON.stringify({
-        bullets: [
+        videos: [
           {
             videoId: 'vid1',
             videoTitle: 'FAKE MODEL TITLE',
             channelName: 'FAKE MODEL CHANNEL',
-            startSegmentId: 'vid1#0',
-            endSegmentId: 'vid1#1',
-            bullet: 'x',
-            whyItMatters: 'y',
-            tags: [],
+            precis: 'p',
+            points: [{ startSegmentId: 'vid1#0', endSegmentId: 'vid1#1', text: 'x' }],
           },
         ],
       }),
@@ -86,28 +80,53 @@ describe('buildDigest - direct mode', () => {
     const result = await buildDigest(llm, makeProfile(), [video]);
     expect(result.status).toBe('ready');
     if (result.status !== 'ready') return;
-    expect(result.digest.bullets[0].videoTitle).toBe('Real Title for vid1');
-    expect(result.digest.bullets[0].channelName).toBe('Real Channel for vid1');
+    expect(result.digest.videos[0].videoTitle).toBe('Real Title for vid1');
+    expect(result.digest.videos[0].channelName).toBe('Real Channel for vid1');
   });
 
-  it('flags a bullet referencing an unknown video as invalid - this must block the global status commit', async () => {
+  it('flags a video entry referencing an unknown video as invalid - this must block the global status commit', async () => {
     const video = makeVideo('vid1', 5);
     const llm = makeLLM(() => ({
-      raw: JSON.stringify({ bullets: [{ videoId: 'vidGhost', startSegmentId: 'a', endSegmentId: 'b', bullet: 'x', whyItMatters: 'y', tags: [] }] }),
+      raw: JSON.stringify({ videos: [{ videoId: 'vidGhost', precis: 'p', points: [{ startSegmentId: 'a', endSegmentId: 'b', text: 'x' }] }] }),
     }));
 
     const result = await buildDigest(llm, makeProfile(), [video]);
     expect(result.status).toBe('invalid');
   });
 
-  it('flags a bullet whose segment reference does not resolve (unknown segment id) as invalid', async () => {
+  it('flags a response as invalid when every point across every video fails to resolve', async () => {
     const video = makeVideo('vid1', 5);
     const llm = makeLLM(() => ({
-      raw: JSON.stringify({ bullets: [{ videoId: 'vid1', startSegmentId: 'vid1#0', endSegmentId: 'vid1#999', bullet: 'x', whyItMatters: 'y', tags: [] }] }),
+      raw: JSON.stringify({ videos: [{ videoId: 'vid1', precis: 'p', points: [{ startSegmentId: 'vid1#0', endSegmentId: 'vid1#999', text: 'x' }] }] }),
     }));
 
     const result = await buildDigest(llm, makeProfile(), [video]);
     expect(result.status).toBe('invalid');
+  });
+
+  it('drops just the unresolvable point, keeping a ready digest built from the video\'s other valid points', async () => {
+    const video = makeVideo('vid1', 10);
+    const llm = makeLLM(() => ({
+      raw: JSON.stringify({
+        videos: [
+          {
+            videoId: 'vid1',
+            precis: 'p',
+            points: [
+              { startSegmentId: 'vid1#0', endSegmentId: 'vid1#999', text: 'forged - unknown segment' },
+              { startSegmentId: 'vid1#2', endSegmentId: 'vid1#3', text: 'valid point' },
+            ],
+          },
+        ],
+      }),
+    }));
+
+    const result = await buildDigest(llm, makeProfile(), [video]);
+    expect(result.status).toBe('ready');
+    if (result.status === 'ready') {
+      expect(result.digest.videos[0].points.length).toBe(1);
+      expect(result.digest.videos[0].points[0].text).toBe('valid point');
+    }
   });
 
   it('returns invalid (not empty) for a response that is not valid JSON', async () => {
@@ -118,9 +137,9 @@ describe('buildDigest - direct mode', () => {
     expect(result.status).toBe('invalid');
   });
 
-  it('returns invalid (not empty) for valid JSON missing a bullets array', async () => {
+  it('returns invalid (not empty) for valid JSON missing a videos array', async () => {
     const video = makeVideo('vid1', 5);
-    const llm = makeLLM(() => ({ raw: JSON.stringify({ notBullets: [] }) }));
+    const llm = makeLLM(() => ({ raw: JSON.stringify({ notVideos: [] }) }));
 
     const result = await buildDigest(llm, makeProfile(), [video]);
     expect(result.status).toBe('invalid');
@@ -128,24 +147,21 @@ describe('buildDigest - direct mode', () => {
 
   it('returns a structurally-valid-but-empty result as empty, not invalid', async () => {
     const video = makeVideo('vid1', 5);
-    const llm = makeLLM(() => ({ raw: JSON.stringify({ bullets: [] }) }));
+    const llm = makeLLM(() => ({ raw: JSON.stringify({ videos: [] }) }));
 
     const result = await buildDigest(llm, makeProfile(), [video]);
     expect(result).toEqual({ status: 'empty' });
   });
 
-  it('clamps (does not invalidate) an over-length bullet on an otherwise-resolvable reference', async () => {
+  it('clamps (does not invalidate) an over-length point/precis', async () => {
     const video = makeVideo('vid1', 5);
     const llm = makeLLM(() => ({
       raw: JSON.stringify({
-        bullets: [
+        videos: [
           {
             videoId: 'vid1',
-            startSegmentId: 'vid1#0',
-            endSegmentId: 'vid1#1',
-            bullet: 'x'.repeat(500),
-            whyItMatters: 'y',
-            tags: ['a', 'b', 'c', 'd', 'e', 'f'],
+            precis: 'y'.repeat(700),
+            points: [{ startSegmentId: 'vid1#0', endSegmentId: 'vid1#1', text: 'x'.repeat(900) }],
           },
         ],
       }),
@@ -154,24 +170,24 @@ describe('buildDigest - direct mode', () => {
     const result = await buildDigest(llm, makeProfile(), [video]);
     expect(result.status).toBe('ready');
     if (result.status === 'ready') {
-      expect(result.digest.bullets[0].bullet.length).toBe(280);
-      expect(result.digest.bullets[0].tags.length).toBe(5);
+      expect(result.digest.videos[0].precis.length).toBeLessThanOrEqual(601);
+      expect(result.digest.videos[0].points[0].text.length).toBeLessThanOrEqual(801);
     }
   });
 
-  it('does not treat the model omitting a video (fewer bullets than videos) as any kind of rejection', async () => {
+  it('does not treat the model omitting a video (fewer entries than videos) as any kind of rejection', async () => {
     const v1 = makeVideo('vid1', 5, 20, 0.9);
     const v2 = makeVideo('vid2', 5, 20, 0.8);
     const llm = makeLLM(() => ({
       raw: JSON.stringify({
-        bullets: [{ videoId: 'vid1', startSegmentId: 'vid1#0', endSegmentId: 'vid1#1', bullet: 'x', whyItMatters: 'y', tags: [] }],
+        videos: [{ videoId: 'vid1', precis: 'p', points: [{ startSegmentId: 'vid1#0', endSegmentId: 'vid1#1', text: 'x' }] }],
       }),
     }));
 
     const result = await buildDigest(llm, makeProfile(), [v1, v2]);
     expect(result.status).toBe('ready');
     if (result.status === 'ready') {
-      expect(result.digest.bullets.length).toBe(1);
+      expect(result.digest.videos.length).toBe(1);
       expect(result.selectedVideoIds).toEqual(['vid1']);
     }
   });
@@ -183,13 +199,10 @@ describe('buildDigest - direct mode', () => {
       const parsed = JSON.parse(opts.input) as { videos: Array<{ videoId: string }> };
       return {
         raw: JSON.stringify({
-          bullets: parsed.videos.map((v) => ({
+          videos: parsed.videos.map((v) => ({
             videoId: v.videoId,
-            startSegmentId: `${v.videoId}#0`,
-            endSegmentId: `${v.videoId}#1`,
-            bullet: 'x',
-            whyItMatters: 'y',
-            tags: [],
+            precis: 'p',
+            points: [{ startSegmentId: `${v.videoId}#0`, endSegmentId: `${v.videoId}#1`, text: 'x' }],
           })),
         }),
       };
@@ -200,14 +213,13 @@ describe('buildDigest - direct mode', () => {
     expect(twoVideoResult.status).toBe('ready');
     expect(oneVideoResult.status).toBe('ready');
     if (twoVideoResult.status === 'ready' && oneVideoResult.status === 'ready') {
-      expect(oneVideoResult.digest.bullets.length).toBeLessThan(twoVideoResult.digest.bullets.length);
+      expect(oneVideoResult.digest.videos.length).toBeLessThan(twoVideoResult.digest.videos.length);
     }
   });
 });
 
 describe('buildDigest - overflow mode', () => {
-  it('grounds a bullet in evidence extracted from an over-budget transcript, rejecting unknown/cross-video evidence ids', async () => {
-    // Large enough combined transcript to exceed the direct-mode content budget.
+  it('grounds points in evidence extracted from an over-budget transcript, rejecting unknown/cross-video evidence ids', async () => {
     // 1500 segments: large enough to exceed the direct-mode content
     // budget (forcing overflow mode) but still chunks to fewer than the
     // default per-profile call budget, so this test isn't itself subject
@@ -231,18 +243,18 @@ describe('buildDigest - overflow mode', () => {
       const validId = input.evidence[0]?.id;
       return {
         raw: JSON.stringify({
-          bullets: [
-            { videoId: 'vidBig', evidenceId: 'totally-unknown-id', bullet: 'bad1', whyItMatters: 'y', tags: [] },
-            { videoId: 'vidOther', evidenceId: validId, bullet: 'bad2', whyItMatters: 'y', tags: [] },
+          videos: [
+            { videoId: 'vidBig', precis: 'p', points: [{ evidenceId: 'totally-unknown-id', text: 'bad1' }] },
+            { videoId: 'vidOther', precis: 'p', points: [{ evidenceId: validId, text: 'bad2' }] },
           ],
         }),
       };
     });
 
     const badResult = await buildDigest(llm, makeProfile(), [video]);
-    // An unknown evidence ID and a cross-video-mismatched reference are
-    // both unresolvable references - this must be 'invalid' (blocking the
-    // commit), regardless of whether overflow coverage was also partial.
+    // An unknown video reference is a hard, video-level rejection - this
+    // must be 'invalid' (blocking the commit) regardless of the other
+    // (point-level, would-otherwise-survive) unknown evidence id.
     expect(badResult.status).toBe('invalid');
   });
 
@@ -262,7 +274,7 @@ describe('buildDigest - overflow mode', () => {
       // Should never be reached: with zero valid evidence for the only
       // video, buildDigest must return before ever calling the final
       // digest-generator LLM role.
-      return { raw: JSON.stringify({ bullets: [] }) };
+      return { raw: JSON.stringify({ videos: [] }) };
     });
 
     const result = await buildDigest(llm, makeProfile(), [video]);
@@ -270,7 +282,7 @@ describe('buildDigest - overflow mode', () => {
     expect(result.status).not.toBe('empty');
   });
 
-  it('still builds a ready digest from a video\'s cleanly-resolved chunks when a DIFFERENT chunk of the same video is malformed', async () => {
+  it("still builds a ready digest from a video's cleanly-resolved chunks when a DIFFERENT chunk of the same video is malformed", async () => {
     // 1500 segments chunk into a handful of overflow calls (within the
     // default per-profile budget). One chunk returns a malformed/forged
     // reference (e.g. a real GPT formatting slip - a bare segment number
@@ -303,14 +315,14 @@ describe('buildDigest - overflow mode', () => {
       const input = JSON.parse(opts.input) as { evidence: Array<{ id: string; videoId: string }> };
       const validId = input.evidence[0]?.id;
       return {
-        raw: JSON.stringify({ bullets: [{ videoId: 'vidBig', evidenceId: validId, bullet: 'good', whyItMatters: 'y', tags: [] }] }),
+        raw: JSON.stringify({ videos: [{ videoId: 'vidBig', precis: 'p', points: [{ evidenceId: validId, text: 'good' }] }] }),
       };
     });
 
     const result = await buildDigest(llm, makeProfile(), [video]);
     expect(result.status).toBe('ready');
     if (result.status === 'ready') {
-      expect(result.digest.bullets[0].bullet).toBe('good');
+      expect(result.digest.videos[0].points[0].text).toBe('good');
     }
   });
 
@@ -333,15 +345,15 @@ describe('buildDigest - overflow mode', () => {
       const input = JSON.parse(opts.input) as { evidence: Array<{ id: string; videoId: string }> };
       const validId = input.evidence[0]?.id;
       return {
-        raw: JSON.stringify({ bullets: [{ videoId: 'vidBig', evidenceId: validId, bullet: 'good', whyItMatters: 'y', tags: [] }] }),
+        raw: JSON.stringify({ videos: [{ videoId: 'vidBig', precis: 'p', points: [{ evidenceId: validId, text: 'good' }] }] }),
       };
     });
 
     const result = await buildDigest(llm, makeProfile(), [video]);
     expect(result.status).toBe('ready');
     if (result.status === 'ready') {
-      expect(result.digest.bullets[0].bullet).toBe('good');
-      expect(result.digest.bullets[0].evidence.excerpt.length).toBeGreaterThan(0);
+      expect(result.digest.videos[0].points[0].text).toBe('good');
+      expect(result.digest.videos[0].points[0].evidence.excerpt.length).toBeGreaterThan(0);
     }
   });
 });

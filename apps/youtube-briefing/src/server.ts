@@ -407,7 +407,7 @@ app.post('/jobs/youtube/generate-digest', async (req, res) => {
 
     persistDigest(result.digest);
 
-    console.log(`[GenerateDigest] Generated: ${result.digest.bullets.length} bullets, saved ${result.digest.minutesSaved} min`);
+    console.log(`[GenerateDigest] Generated: ${result.digest.videoCount} videos, saved ${result.digest.minutesSaved} min`);
 
     res.json({ status: 'ready', digest: result.digest });
   } catch (error) {

@@ -6,9 +6,11 @@
   "main": "./dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "build": "tsc && mkdir -p dist/db && cp src/db/schema.sql dist/db/schema.sql",
     "start": "node dist/server.js",
     "test": "vitest",
+    "test:built-db": "tsx tests/builtDb.smoke.ts",
+    "preview": "tsx scripts/previewDigest.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

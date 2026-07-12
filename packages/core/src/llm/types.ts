@@ -11,6 +11,8 @@ export interface LLMCallOptions {
   input: string;
   temperature?: number;
   maxTokens?: number;
+  /** Optional abort signal so a caller-owned deadline can cancel an in-flight call. */
+  signal?: AbortSignal;
 }
 
 export interface LLMCallResult {

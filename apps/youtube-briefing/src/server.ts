@@ -23,14 +23,18 @@ import {
   type UserProfile,
 } from './relevance/engine.js';
 import {
-  generateDigest,
+  buildDigest,
   formatDigestText,
   formatDigestHtml,
-  getRecentDigests,
+  type DigestVideoInput,
+  type ProfileForDigest,
 } from './digest/generator.js';
+import { persistDigest, getRecentDigests } from './digest/persistence.js';
+import { enrichCandidatesWithTranscripts, createRunTranscriptBudget } from './transcript/enrichmentService.js';
+import { assignSegmentIds } from './transcript/segments.js';
+import { getSharedLLMClient } from './llm/client.js';
 import {
   sendDigestEmail,
-  sendDigestToSubscribers,
   addSubscriber,
   removeSubscriber,
   listSubscribers,
@@ -38,6 +42,9 @@ import {
 import {
   runDailyBrief,
   getRecentRuns,
+  runProfileDigest,
+  markVideosProcessed,
+  STATUS_SAFE_OUTCOMES,
 } from './scheduler/dailyBrief.js';
 
 dotenv.config();
@@ -307,9 +314,74 @@ app.post('/knowledge', async (req, res) => {
 // =================================================================
 
 /**
+ * Runs enrichment for one profile and returns the pieces
+ * `runProfileDigest` needs. Deliberately does not build, persist, or
+ * commit anything itself - that is `runProfileDigest`'s job, so this
+ * endpoint and the multi-profile daily-brief run apply the exact same
+ * outcome/commit contract rather than each deciding independently
+ * whether it's safe to mark a video globally processed (see
+ * `runProfileDigest`'s doc comment). Calling this repeatedly is safe
+ * (candidates stay eligible; the transcript cache still avoids
+ * redundant fetches).
+ */
+async function enrichProfileForDigest(
+  profileId: string,
+  maxVideos: number
+): Promise<{ profileForDigest: ProfileForDigest; videoInputs: DigestVideoInput[] }> {
+  const profile = getActiveProfiles().find((p) => p.id === profileId);
+  if (!profile) {
+    throw new Error(`No active profile found: ${profileId}`);
+  }
+
+  // A single ad-hoc call gets its own fresh budget (it isn't part of a
+  // shared multi-profile run).
+  const enrichment = await enrichCandidatesWithTranscripts(profileId, maxVideos, createRunTranscriptBudget());
+  const videoInputs: DigestVideoInput[] = enrichment.videos.map((v) => ({
+    videoId: v.videoId,
+    title: v.title,
+    channelName: v.channelName,
+    durationSeconds: v.durationSeconds,
+    combinedScore: v.combinedScore,
+    segments: assignSegmentIds(v.videoId, v.transcript.segments),
+  }));
+
+  const profileForDigest: ProfileForDigest = {
+    id: profile.id,
+    name: profile.name,
+    interests: profile.interests,
+    projects: profile.projects,
+    strategyThemes: profile.strategyThemes,
+  };
+
+  return { profileForDigest, videoInputs };
+}
+
+/**
+ * Builds - and unless dryRun, persists, sends, and (only if
+ * status-safe) commits - a grounded digest for one profile via the same
+ * `runProfileDigest`/`STATUS_SAFE_OUTCOMES` contract the multi-profile
+ * daily-brief run uses, so a single-profile HTTP call can never mark a
+ * video globally processed on a deferred/invalid/failed outcome the way
+ * ad-hoc duplicated logic previously could.
+ */
+async function buildAndCommitDigestForProfile(profileId: string, maxVideos: number, dryRun: boolean) {
+  const { profileForDigest, videoInputs } = await enrichProfileForDigest(profileId, maxVideos);
+  const profileResult = await runProfileDigest(getSharedLLMClient(), profileForDigest, videoInputs, { dryRun });
+
+  if (!dryRun && STATUS_SAFE_OUTCOMES.has(profileResult.outcome) && profileResult.selectedVideoIds.length > 0) {
+    markVideosProcessed(profileResult.selectedVideoIds);
+  }
+
+  return profileResult;
+}
+
+/**
  * POST /jobs/youtube/generate-digest
- * 
- * Generate a digest for a profile.
+ *
+ * Generate and persist a grounded digest for a profile, WITHOUT sending
+ * it to subscribers or marking any video globally processed - purely a
+ * preview/generation tool (see `enrichProfileForDigest`'s doc comment).
+ * Use POST /jobs/youtube/send-digest to actually deliver and commit.
  * Query params:
  *   - profile_id: Profile to generate digest for (required)
  *   - max_videos: Max videos to include (default 10)
@@ -318,18 +390,26 @@ app.post('/jobs/youtube/generate-digest', async (req, res) => {
   try {
     const profileId = req.query.profile_id as string;
     const maxVideos = parseInt(req.query.max_videos as string) || 10;
-    
+
     if (!profileId) {
       return res.status(400).json({ error: 'profile_id is required' });
     }
-    
+
     console.log(`[GenerateDigest] Generating for profile ${profileId}...`);
-    
-    const digest = await generateDigest(profileId, maxVideos);
-    
-    console.log(`[GenerateDigest] Generated: ${digest.bullets.length} bullets, saved ${digest.minutesSaved} min`);
-    
-    res.json(digest);
+
+    const { profileForDigest, videoInputs } = await enrichProfileForDigest(profileId, maxVideos);
+    const result = await buildDigest(getSharedLLMClient(), profileForDigest, videoInputs);
+
+    if (result.status !== 'ready') {
+      console.log(`[GenerateDigest] ${result.status} for profile ${profileId}`);
+      return res.json({ status: result.status, digest: null });
+    }
+
+    persistDigest(result.digest);
+
+    console.log(`[GenerateDigest] Generated: ${result.digest.bullets.length} bullets, saved ${result.digest.minutesSaved} min`);
+
+    res.json({ status: 'ready', digest: result.digest });
   } catch (error) {
     console.error('[GenerateDigest] Error:', error);
     res.status(500).json({
@@ -420,51 +500,56 @@ app.get('/digests/:id/html', (req, res) => {
 
 /**
  * POST /jobs/youtube/send-digest
- * 
- * Generate and send a digest to all subscribers.
+ *
+ * Generate, persist, and send a digest to all subscribers for one
+ * profile - applying the exact same outcome/commit contract as the
+ * multi-profile daily-brief run (`runProfileDigest` +
+ * `STATUS_SAFE_OUTCOMES`), so a real send from this endpoint marks its
+ * videos globally processed exactly when a daily-brief run would have,
+ * instead of leaving them eligible to be re-selected and re-sent by a
+ * later run.
  * Query params:
  *   - profile_id: Profile to generate/send for (required)
- *   - dry_run: If true, generate but don't send email
+ *   - dry_run: If true, generate but don't persist, send, or commit
  */
 app.post('/jobs/youtube/send-digest', async (req, res) => {
   try {
     const profileId = req.query.profile_id as string;
     const dryRun = req.query.dry_run === 'true';
-    
+
     if (!profileId) {
       return res.status(400).json({ error: 'profile_id is required' });
     }
-    
+
     console.log(`[SendDigest] Generating for profile ${profileId}${dryRun ? ' (dry run)' : ''}...`);
-    
-    // Generate digest
-    const digest = await generateDigest(profileId);
-    
-    if (digest.bullets.length === 0) {
-      return res.json({
-        message: 'No videos to include in digest',
-        digest,
-        sent: 0,
-      });
-    }
-    
+
+    const profileResult = await buildAndCommitDigestForProfile(profileId, 10, dryRun);
+
     if (dryRun) {
       return res.json({
         message: 'Dry run - digest generated but not sent',
-        digest,
+        status: profileResult.outcome,
+        digest: profileResult.digest ?? null,
         dryRun: true,
       });
     }
-    
-    // Send to subscribers
-    const sendResult = await sendDigestToSubscribers(digest);
-    
-    console.log(`[SendDigest] Sent to ${sendResult.sent} subscribers`);
-    
+
+    if (!profileResult.digest) {
+      return res.json({
+        message: `No videos to include in digest (${profileResult.outcome})`,
+        status: profileResult.outcome,
+        sent: 0,
+      });
+    }
+
+    console.log(`[SendDigest] Sent to ${profileResult.emailsSent} subscribers (outcome: ${profileResult.outcome})`);
+
     res.json({
-      message: `Sent to ${sendResult.sent} subscribers`,
-      digest,
-      ...sendResult,
+      message: `Sent to ${profileResult.emailsSent} subscribers`,
+      status: profileResult.outcome,
+      digest: profileResult.digest,
+      sent: profileResult.emailsSent,
+      failed: profileResult.emailsFailed,
     });
   } catch (error) {
     console.error('[SendDigest] Error:', error);
@@ -578,7 +663,7 @@ app.post('/jobs/daily-brief', async (req, res) => {
       profileIds: profileId ? [profileId] : undefined,
     });
     
-    console.log(`[DailyBrief] Completed: ${result.digests.length} digests, ${result.digests.reduce((s, d) => s + d.emailsSent, 0)} emails sent`);
+    console.log(`[DailyBrief] Completed: ${result.digestsGenerated} digests, ${result.profiles.reduce((s, p) => s + p.emailsSent, 0)} emails sent`);
     
     res.json(result);
   } catch (error) {

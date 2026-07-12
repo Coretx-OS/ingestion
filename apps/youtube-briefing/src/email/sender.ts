@@ -5,7 +5,7 @@
  */
 
 import { Resend } from 'resend';
-import { formatDigestHtml, formatDigestText, type Digest } from '../digest/generator.js';
+import { formatDigestHtml, formatDigestText, type GroundedDigest } from '../digest/generator.js';
 import { getDb } from '../db/connection.js';
 import { randomUUID } from 'crypto';
 
@@ -39,7 +39,7 @@ function getResend(): Resend {
  * Send a digest via email
  */
 export async function sendDigestEmail(
-  digest: Digest,
+  digest: GroundedDigest,
   config: EmailConfig
 ): Promise<SendResult> {
   const resend = getResend();
@@ -103,7 +103,7 @@ export async function sendDigestEmail(
 /**
  * Send digest to all subscribers for a profile
  */
-export async function sendDigestToSubscribers(digest: Digest): Promise<{
+export async function sendDigestToSubscribers(digest: GroundedDigest): Promise<{
   sent: number;
   failed: number;
   results: Array<{ email: string; result: SendResult }>;

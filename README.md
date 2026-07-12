@@ -139,11 +139,13 @@ These tests validate fixture SHAPE and invariants only (no LLM calls).
 ### YouTube Daily Briefing Instance (`apps/youtube-briefing/`)
 A standalone instance for automated YouTube channel monitoring and strategic digests:
 - **Channel Monitoring**: Track multiple YouTube channels for new videos
-- **Automated Capture**: Cron-scheduled jobs fetch transcripts and generate summaries
-- **Relevance Scoring**: Embedding-based scoring against configurable topics of interest
-- **Digest Generation**: LLM-generated strategic briefings from high-relevance videos
+- **Relevance Scoring**: Embedding-based scoring against configurable topics of interest (unchanged 60/40 relevance/novelty formula)
+- **Transcript-Grounded Digests**: every bullet and "Watch key moment" link is derived from validated, timestamped transcript evidence - never an inferred or model-invented timestamp. Transcripts are fetched via the shared `@secondbrain/core` YouTube transcript provider, cached in SQLite, and enriched only for a bounded, ranked pool of candidates.
+- **Bounded LLM Usage**: transcripts that fit the digest prompt are sent directly; longer transcripts are processed through budgeted, profile-aware overflow evidence extraction rather than truncating or reducing quality
 - **Email Delivery**: Daily digests sent via Resend API
-- **Scheduler**: Node-cron based job scheduling for capture and digest generation
+- **Scheduler**: Cloud Scheduler / manual-trigger based job orchestration for monitoring, scoring, transcript enrichment, and digest generation
+
+See [`apps/youtube-briefing/README.md`](apps/youtube-briefing/README.md) for transcript provider limitations, cache/retry behavior, and the `TRANSCRIPT_LANGUAGES` environment variable.
 
 ### Backend API Endpoints
 - `POST /capture` - Text capture and classification
@@ -197,10 +199,12 @@ Load the extension from `apps/extension/dist/` in Chrome (`chrome://extensions/`
 ### Testing
 
 ```bash
-npm test  # Runs backend tests
+npm test              # Runs backend tests
+npm run test:core      # Runs @secondbrain/core tests (transcript provider, normalization)
+npm run test:briefing  # Runs @secondbrain/youtube-briefing tests
 ```
 
-Golden tests validate fixture shape and invariants only (no LLM calls). See `docs/TESTING.md` for details.
+Golden tests validate fixture shape and invariants only (no LLM calls). All transcript-provider and transcript-cache tests run against fixture-backed fetch mocks and temporary SQLite databases - no live YouTube calls happen in CI. See `docs/TESTING.md` and `apps/youtube-briefing/README.md` for details.
 
 ### Environment Variables
 
@@ -214,6 +218,9 @@ YOUTUBE_API_KEY=your-youtube-data-api-key
 # Optional
 OPENAI_MODEL=gpt-4o-mini  # Default model
 TRANSCRIPT_PROVIDER=youtube-transcript  # Default transcript provider
+
+# YouTube Briefing instance only (see apps/youtube-briefing/README.md)
+TRANSCRIPT_LANGUAGES=en  # Ordered, comma-separated caption language preference
 ```
 
 ### Node Version

@@ -206,6 +206,40 @@ CREATE INDEX IF NOT EXISTS idx_email_log_digest ON email_log(digest_id);
 CREATE INDEX IF NOT EXISTS idx_email_log_sent ON email_log(sent_at DESC);
 
 -- =================================================================
+-- VIDEO_TRANSCRIPTS: Cached, normalized transcripts + retrieval attempts
+-- (Transcript grounding)
+-- =================================================================
+-- "unavailable" means unavailable under the recorded policy_key, not
+-- permanently unavailable forever - a policy-key change (provider
+-- version/languages/fallback/schema version) or the recheck TTL allows
+-- retrying. "retryable_failure" rows are transient and retried on the
+-- backoff schedule in src/config/budgets.ts, bounded by a retry horizon
+-- beyond the normal 24h freshness window.
+CREATE TABLE IF NOT EXISTS video_transcripts (
+  video_id TEXT PRIMARY KEY,
+  status TEXT NOT NULL CHECK (status IN ('available', 'unavailable', 'retryable_failure')),
+  provider TEXT NOT NULL,
+  policy_key TEXT NOT NULL,
+  language TEXT,
+  segments_json TEXT,
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  last_attempted_at TEXT NOT NULL DEFAULT (datetime('now')),
+  next_retry_at TEXT,
+  error_code TEXT,
+  error_message TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+
+  FOREIGN KEY (video_id) REFERENCES videos(video_id),
+  CHECK (status != 'available' OR segments_json IS NOT NULL),
+  CHECK (status = 'available' OR error_code IS NOT NULL)
+);
+
+CREATE INDEX IF NOT EXISTS idx_video_transcripts_status ON video_transcripts(status);
+CREATE INDEX IF NOT EXISTS idx_video_transcripts_next_retry ON video_transcripts(next_retry_at);
+CREATE INDEX IF NOT EXISTS idx_video_transcripts_policy ON video_transcripts(policy_key);
+
+-- =================================================================
 -- DAILY_BRIEF_RUNS: Full pipeline execution tracking (Phase 6)
 -- =================================================================
 CREATE TABLE IF NOT EXISTS daily_brief_runs (

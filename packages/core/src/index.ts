@@ -36,6 +36,14 @@ export type {
   TranscriptProvider,
   TranscriptResult,
   TranscriptSegment,
+  TranscriptErrorCode,
+  YouTubeTranscriptProviderOptions,
+} from './transcript/index.js';
+export {
+  TranscriptError,
+  YouTubeTranscriptProvider,
+  createYouTubeTranscriptProvider,
+  assertValidSegments,
 } from './transcript/index.js';
 
 // Storage

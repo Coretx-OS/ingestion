@@ -22,15 +22,18 @@ export class OpenAIClient implements LLMClient {
   }
 
   async call(options: LLMCallOptions): Promise<LLMCallResult> {
-    const completion = await this.client.chat.completions.create({
-      model: this.model,
-      temperature: options.temperature ?? 0,
-      max_tokens: options.maxTokens,
-      messages: [
-        { role: 'system', content: options.prompt },
-        { role: 'user', content: options.input },
-      ],
-    });
+    const completion = await this.client.chat.completions.create(
+      {
+        model: this.model,
+        temperature: options.temperature ?? 0,
+        max_tokens: options.maxTokens,
+        messages: [
+          { role: 'system', content: options.prompt },
+          { role: 'user', content: options.input },
+        ],
+      },
+      { signal: options.signal }
+    );
 
     const content = completion.choices?.[0]?.message?.content ?? '';
     const usage = completion.usage;

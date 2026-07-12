@@ -20,8 +20,11 @@
     "build:backend": "npm run build -w @secondbrain/backend",
     "build:extension": "npm run build -w @secondbrain/extension",
     "build:briefing": "npm run build -w @secondbrain/youtube-briefing",
-    "test": "npm run test -w @secondbrain/backend",
-    "test:backend": "npm run test -w @secondbrain/backend",
+    "test": "npm run test:backend && npm run test:core && npm run test:briefing",
+    "test:backend": "npm run test -w @secondbrain/backend -- run",
+    "test:core": "npm run test -w @secondbrain/core -- run",
+    "test:briefing": "npm run test -w @secondbrain/youtube-briefing -- run",
+    "test:built-db": "rm -rf apps/youtube-briefing/dist && npm run build -w @secondbrain/core && npm run build -w @secondbrain/youtube-briefing && npm run test:built-db -w @secondbrain/youtube-briefing",
     "lint": "npm run lint -w @secondbrain/extension",
     "typecheck": "npm run typecheck -w @secondbrain/contracts && npm run typecheck -w @secondbrain/core && npm run typecheck -w @secondbrain/sdk && npm run typecheck -w @secondbrain/backend && npm run typecheck -w @secondbrain/extension && npm run typecheck -w @secondbrain/youtube-briefing"
   },

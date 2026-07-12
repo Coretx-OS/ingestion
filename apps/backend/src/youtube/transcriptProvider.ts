@@ -2,11 +2,11 @@
  * Transcript Provider Interface
  *
  * Pluggable transcript fetching for YouTube videos.
- * Default implementation uses 'youtube-transcript' npm package.
- *
- * Re-exports types from @secondbrain/core for backward compatibility.
+ * The concrete implementation is owned by @secondbrain/core and shared
+ * with every consumer package.
  */
 
+import { createYouTubeTranscriptProvider } from '@secondbrain/core';
 import type {
   TranscriptResult as CoreTranscriptResult,
   TranscriptProvider as CoreTranscriptProvider,
@@ -27,9 +27,6 @@ export function getTranscriptProvider(): TranscriptProvider {
   switch (providerName) {
     case 'youtube-transcript':
     default:
-      // Lazy import to avoid loading if not used
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { YouTubeTranscriptProvider } = require('./providers/youtubeTranscript.js');
-      return new YouTubeTranscriptProvider();
+      return createYouTubeTranscriptProvider();
   }
 }

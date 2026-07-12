@@ -125,11 +125,20 @@ export async function buildDigest(
         incompleteVideoIds.add(videos[i].videoId);
       }
     }
+    // A malformed/unresolvable reference in one chunk is scoped to that
+    // chunk, not the whole video: `runOverflowExtraction` already strictly
+    // validates each reference against only the segments shown in its own
+    // chunk call, so a forged/malformed ref there is already excluded from
+    // `extraction.evidence` - it never taints another, independently
+    // validated chunk's evidence for the same video. `invalidVideoIds` is
+    // therefore only a diagnostic signal here (which video(s) saw a
+    // malformed response this run), used below to label the run 'invalid'
+    // rather than 'empty' when nothing usable survived at all - it does
+    // NOT exclude a video's other, cleanly-resolved evidence.
     const invalidVideoIds = extraction.invalidVideoIds;
 
-    const excludedVideoIds = new Set([...incompleteVideoIds, ...invalidVideoIds]);
     evidencePool = fitEvidenceToContentBudget(
-      extraction.evidence.filter((e) => !excludedVideoIds.has(e.videoId)),
+      extraction.evidence.filter((e) => !incompleteVideoIds.has(e.videoId)),
       videos
     );
     partialCoverage = incompleteVideoIds.size > 0;

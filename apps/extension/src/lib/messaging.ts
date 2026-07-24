@@ -158,6 +158,27 @@ export interface MessageTypes {
       };
     };
   };
+
+  // AI Video Summary (entertainment feature) - independent of CAPTURE_YOUTUBE,
+  // no cortex ingestion involved. See YOUTUBE-AI-VIDEO-SUMMARY-PLAN.md.
+  SUMMARIZE_YOUTUBE: {
+    request: {
+      video_url: string;
+      video_id: string;
+      prompt: string;
+    };
+    response: {
+      status: 'completed' | 'failed';
+      summary?: string;
+      title?: string;
+      channel?: string;
+      video_id?: string;
+      error?: {
+        stage: 'transcript' | 'metadata' | 'llm' | 'validation' | 'rate_limit';
+        message: string;
+      };
+    };
+  };
 }
 
 export type MessageType = keyof MessageTypes;

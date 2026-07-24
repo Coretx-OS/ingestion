@@ -47,6 +47,9 @@ export interface StorageSchema {
     device_id: string; // Generated UUID, persisted
     timezone: string; // Intl.DateTimeFormat().resolvedOptions().timeZone
   };
+  // AI Video Summary - saved project/context paragraph spliced into the
+  // "Deep Dive" preset. Entertainment feature, unrelated to captureConfig.
+  summaryContext: string;
   // Current capture - temp state during UI flow
   currentCapture?: {
     capture_id: string; // CRITICAL: Needed for Fix
@@ -196,6 +199,12 @@ export const defaultCaptureConfig: StorageSchema["captureConfig"] = {
 };
 
 /**
+ * Default AI Video Summary project context (empty until the user fills it
+ * in via the options page)
+ */
+export const defaultSummaryContext: StorageSchema["summaryContext"] = "";
+
+/**
  * Generate client metadata
  * Call this once on extension install to create persistent device_id
  */
@@ -231,5 +240,10 @@ export async function initializeStorage(appVersion: string): Promise<void> {
   const clientMeta = await getStorage("clientMeta");
   if (!clientMeta) {
     await setStorage("clientMeta", generateClientMeta(appVersion));
+  }
+
+  const summaryContext = await getStorage("summaryContext");
+  if (summaryContext === undefined) {
+    await setStorage("summaryContext", defaultSummaryContext);
   }
 }

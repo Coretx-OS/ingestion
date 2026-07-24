@@ -256,6 +256,68 @@ createMessageHandler({
     const data = await response.json();
     return data; // Returns YouTubeCaptureResponse with status, recordId, error?
   },
+
+  // AI Video Summary (entertainment feature) - ephemeral, no cortex ingestion.
+  // See YOUTUBE-AI-VIDEO-SUMMARY-PLAN.md.
+  SUMMARIZE_YOUTUBE: async (payload) => {
+    const [settings, clientMeta] = await Promise.all([
+      getStorage("settings"),
+      getStorage("clientMeta"),
+    ]);
+
+    if (!clientMeta) {
+      throw new Error("Client metadata not initialized");
+    }
+
+    const apiBaseUrl = settings?.apiBaseUrl ?? "http://localhost:3000";
+
+    const summarizeRequest = {
+      client: {
+        app: clientMeta.app,
+        app_version: clientMeta.app_version,
+        device_id: clientMeta.device_id,
+        timezone: clientMeta.timezone,
+      },
+      youtube: {
+        video_url: payload.video_url,
+        video_id: payload.video_id,
+        prompt: payload.prompt,
+      },
+    };
+
+    let data;
+    try {
+      const response = await fetch(`${apiBaseUrl}/youtube/summarize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(summarizeRequest),
+      });
+      // The route always returns a structured { status, error? } body, even
+      // for 400/429/500, so parse it regardless of response.ok.
+      data = await response.json();
+    } catch (err) {
+      data = {
+        status: "failed",
+        error: {
+          stage: "validation",
+          message: err instanceof Error ? err.message : "Could not reach backend",
+        },
+      };
+    }
+
+    if (data.status === "completed") {
+      // Stash the result and open it in a new tab - ephemeral hand-off via
+      // chrome.storage.session (clears on browser-session end). The write
+      // must complete before opening the tab so summary.html never races it.
+      const id = crypto.randomUUID();
+      await chrome.storage.session.set({ [id]: data });
+      await chrome.tabs.create({
+        url: chrome.runtime.getURL(`src/summary/summary.html?id=${id}`),
+      });
+    }
+
+    return data; // Returns SUMMARIZE_YOUTUBE response (status, summary?, error?)
+  },
 });
 
 // Context menu setup

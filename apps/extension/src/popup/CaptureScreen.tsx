@@ -10,6 +10,15 @@ interface CaptureScreenProps {
 /**
  * Extract YouTube video ID from URL
  */
+const TLDR_PROMPT =
+  "Give me a short, punchy TL;DR of this video's main points - a few sentences, no fluff.";
+
+function buildDeepDivePrompt(context: string): string {
+  const base =
+    "Summarize the main points the speaker discusses; break out subtopics within this video and connect the concepts to my ongoing project work, future direction, or brainstorming ideas.";
+  return context.trim() ? `${base}\n\nMy project context:\n${context.trim()}` : base;
+}
+
 function extractVideoId(url: string): string | null {
   try {
     const urlObj = new URL(url);
@@ -42,6 +51,13 @@ export function CaptureScreen({ onCaptured, onViewLog }: CaptureScreenProps) {
   const [videoInfo, setVideoInfo] = useState<{ url: string; videoId: string } | null>(null);
   const [youtubeLoading, setYoutubeLoading] = useState(false);
 
+  // AI Video Summary (entertainment feature, independent of the capture above)
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [summaryContext, setSummaryContext] = useState("");
+  const [summaryPrompt, setSummaryPrompt] = useState("");
+  const [summarizing, setSummarizing] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+
   // Capture config checkboxes
   const [includeUrl, setIncludeUrl] = useState(true);
   const [includePageTitle, setIncludePageTitle] = useState(true);
@@ -56,6 +72,11 @@ export function CaptureScreen({ onCaptured, onViewLog }: CaptureScreenProps) {
         setIncludeUrl(config.includeUrl);
         setIncludePageTitle(config.includePageTitle);
         setIncludeSelectedText(config.includeSelectedText);
+      }
+
+      const context = await getStorage("summaryContext");
+      if (context) {
+        setSummaryContext(context);
       }
 
       // Get current tab info
@@ -128,6 +149,39 @@ export function CaptureScreen({ onCaptured, onViewLog }: CaptureScreenProps) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setYoutubeLoading(false);
+    }
+  };
+
+  const applySummaryPreset = (preset: "tldr" | "deep_dive") => {
+    setSummaryError(null);
+    setSummaryPrompt(preset === "tldr" ? TLDR_PROMPT : buildDeepDivePrompt(summaryContext));
+  };
+
+  const handleSummarize = async () => {
+    if (!videoInfo || !summaryPrompt.trim() || summarizing) return;
+
+    setSummarizing(true);
+    setSummaryError(null);
+
+    try {
+      const response = await sendToBackground("SUMMARIZE_YOUTUBE", {
+        video_url: videoInfo.url,
+        video_id: videoInfo.videoId,
+        prompt: summaryPrompt,
+      });
+
+      if (!response.success || !response.data) {
+        throw new Error(response.error || "Failed to summarize video");
+      }
+
+      if (response.data.status !== "completed") {
+        setSummaryError(response.data.error?.message || "Summary generation failed");
+      }
+      // On success the background script already opened the result in a new tab.
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setSummarizing(false);
     }
   };
 
@@ -211,6 +265,61 @@ export function CaptureScreen({ onCaptured, onViewLog }: CaptureScreenProps) {
             </>
           )}
         </button>
+      )}
+
+      {/* AI Video Summary - separate entertainment feature, no cortex ingestion */}
+      {isYouTubePage && videoInfo && (
+        <div className="mb-4">
+          <button
+            onClick={() => setSummaryOpen((open) => !open)}
+            className="w-full py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900 text-sm"
+          >
+            {summaryOpen ? "Hide AI Video Summary" : "AI Video Summary"}
+          </button>
+
+          {summaryOpen && (
+            <div className="mt-2 p-3 border border-gray-200 rounded-md space-y-2">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => applySummaryPreset("tldr")}
+                  disabled={summarizing}
+                  className="flex-1 py-1.5 text-xs font-medium bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50"
+                >
+                  TL;DR
+                </button>
+                <button
+                  onClick={() => applySummaryPreset("deep_dive")}
+                  disabled={summarizing}
+                  className="flex-1 py-1.5 text-xs font-medium bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50"
+                >
+                  Deep Dive
+                </button>
+              </div>
+
+              <textarea
+                value={summaryPrompt}
+                onChange={(e) => setSummaryPrompt(e.target.value)}
+                placeholder="Pick a preset above or write your own prompt..."
+                disabled={summarizing}
+                className="w-full h-24 p-2 text-sm border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-gray-500"
+              />
+
+              {summaryError && (
+                <div className="p-2 text-xs bg-red-100 border border-red-400 text-red-700 rounded">
+                  {summaryError}
+                </div>
+              )}
+
+              <button
+                onClick={handleSummarize}
+                disabled={summarizing || !summaryPrompt.trim()}
+                className="w-full py-2 bg-gray-800 text-white text-sm rounded-md hover:bg-gray-900 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              >
+                {summarizing ? "Summarizing..." : "Summarize"}
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Thought input */}

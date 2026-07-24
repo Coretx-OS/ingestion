@@ -13,6 +13,7 @@ import { recentRouter } from './routes/recent.js';
 import { digestRouter } from './routes/digest.js';
 import { reviewRouter } from './routes/review.js';
 import { youtubeRouter } from './routes/youtube.js';
+import { createYoutubeSummaryRouter } from './routes/youtubeSummary.js';
 
 /**
  * Initialize the Express application
@@ -36,6 +37,7 @@ function createApp(): express.Application {
   app.use('/digest', digestRouter);
   app.use('/review', reviewRouter);
   app.use('/youtube', youtubeRouter);
+  app.use('/youtube', createYoutubeSummaryRouter());
 
   // Error handlers (must be last)
   app.use(notFoundHandler);
@@ -79,6 +81,7 @@ async function startServer(): Promise<void> {
       console.log(`   POST /digest/preview`);
       console.log(`   POST /review/preview`);
       console.log(`   POST /youtube/capture`);
+      console.log(`   POST /youtube/summarize`);
       console.log(`\n🎯 Ready to accept requests!\n`);
     });
   } catch (error) {

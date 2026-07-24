@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { sendToBackground } from "@/lib/messaging";
-import { onStorageChange, clearStorage } from "@/lib/storage";
+import { onStorageChange, clearStorage, getStorage, setStorage } from "@/lib/storage";
 
 interface Settings {
   enabled: boolean;
@@ -15,8 +15,13 @@ export function Options() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  // AI Video Summary - saved project context spliced into the "Deep Dive"
+  // preset. Not part of `settings`; stored under its own key.
+  const [summaryContext, setSummaryContextState] = useState("");
+
   useEffect(() => {
     loadSettings();
+    getStorage("summaryContext").then((value) => setSummaryContextState(value ?? ""));
 
     // Listen for storage changes
     const unsubscribe = onStorageChange((changes) => {
@@ -59,6 +64,20 @@ export function Options() {
     } catch (error) {
       console.error("Failed to save setting:", error);
       setSettings(settings); // Revert on error
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function updateSummaryContext(value: string) {
+    setSummaryContextState(value);
+    setSaving(true);
+    try {
+      await setStorage("summaryContext", value);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (error) {
+      console.error("Failed to save summary context:", error);
     } finally {
       setSaving(false);
     }
@@ -202,6 +221,26 @@ export function Options() {
             <p className="mt-2 text-xs text-gray-500">
               Default: http://localhost:3000
             </p>
+          </div>
+
+          {/* AI Video Summary - Project Context */}
+          <div className="p-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-1">
+              AI Video Summary: Project Context
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">
+              A standing description of your project/business, spliced into the
+              "Deep Dive" preset in the AI Video Summary popup flow. Optional -
+              only used by that preset, and always editable before you send it.
+            </p>
+            <textarea
+              value={summaryContext}
+              onChange={(e) => setSummaryContextState(e.target.value)}
+              onBlur={(e) => updateSummaryContext(e.target.value)}
+              disabled={saving}
+              placeholder="e.g. Building a consumer-first, vertical marketplace for local service businesses..."
+              className="w-full h-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:opacity-50"
+            />
           </div>
 
           {/* Reset Settings */}

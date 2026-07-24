@@ -311,3 +311,37 @@ export interface YouTubeCaptureResponse {
  * Extended type for recent items - includes 'youtube' in addition to RecordType
  */
 export type RecentItemType = RecordType | 'youtube';
+
+// =================================================================
+// YOUTUBE AI VIDEO SUMMARY TYPES (entertainment feature, no persistence)
+// =================================================================
+
+/**
+ * YouTube summarize request - sent from extension when user submits a
+ * flexible prompt against a video's transcript. Independent of
+ * YouTubeCaptureRequest: no capture/classification/storage involved.
+ */
+export interface YouTubeSummarizeRequest {
+  client: ClientMeta;
+  youtube: {
+    video_url: string;
+    video_id: string;
+    prompt: string;
+  };
+}
+
+/**
+ * YouTube summarize response - returns the summary text directly since
+ * this feature is ephemeral (no DB row, no /recent entry to poll instead).
+ */
+export interface YouTubeSummarizeResponse {
+  status: 'completed' | 'failed';
+  summary?: string;
+  title?: string;
+  channel?: string;
+  video_id?: string;
+  error?: {
+    stage: 'transcript' | 'metadata' | 'llm' | 'validation' | 'rate_limit';
+    message: string;
+  };
+}

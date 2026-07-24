@@ -16,6 +16,7 @@ export default defineConfig({
       input: {
         popup: resolve(__dirname, "src/popup/popup.html"),
         options: resolve(__dirname, "src/options/options.html"),
+        summary: resolve(__dirname, "src/summary/summary.html"),
       },
     },
   },
